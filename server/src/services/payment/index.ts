@@ -1,16 +1,21 @@
 import { PaymentService } from "./payment.interface";
 import { MockPaymentService } from "./mock-payment.service";
+import { IotaPaymentService } from "./iota-payment.service";
+
+// Use globalThis to avoid CJS/ESM dual-module issue
+const G = globalThis as any;
 
 export function createPaymentService(): PaymentService {
   const mode = process.env.PAYMENT_MODE || "mock";
   switch (mode) {
     case "iota":
-      throw new Error("IOTA payment not yet implemented. Set PAYMENT_MODE=mock");
+      return new IotaPaymentService();
     case "mock":
     default:
       return new MockPaymentService();
   }
 }
 
-export const paymentService = createPaymentService();
-export type { PaymentService, PaymentResult, WalletInfo } from "./payment.interface";
+export const paymentService: PaymentService =
+  G.__iotaPaymentService || (G.__iotaPaymentService = createPaymentService());
+export type { PaymentService, PaymentResult, WalletInfo, WalletRecord } from "./payment.interface";

@@ -1,12 +1,12 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Canvas from "./components/Canvas";
 import ColorPalette from "./components/ColorPalette";
 import PixelInfo from "./components/PixelInfo";
 import WalletPanel from "./components/WalletPanel";
 import Leaderboard from "./components/Leaderboard";
-import AdminPanel from "./components/AdminPanel";
-import { fetchCanvasBinary, apiRequest } from "./services/api";
-import { useSocket } from "./hooks/useSocket";
+import { fetchCanvasBinary, fetchConfig, apiRequest } from "./services/api";
+import { useSocket, SeasonInfo } from "./hooks/useSocket";
+import { useIotaPayment } from "./hooks/useIotaPayment";
 import { Pixel } from "./types";
 
 interface WalletInfo {
@@ -21,15 +21,21 @@ function App() {
   const [canvasWidth] = useState(250);
   const [canvasHeight] = useState(250);
   const [selectedColor, setSelectedColor] = useState(5);
-  const [hoverCoords, setHoverCoords] = useState<{ x: number; y: number } | null>(null);
+  const [selectedPixel, setSelectedPixel] = useState<{ x: number; y: number } | null>(null);
   const [pixelInfo, setPixelInfo] = useState<Pixel | null>(null);
   const [nextPrice, setNextPrice] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [wallet, setWallet] = useState<WalletInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
-  const [showAdmin, setShowAdmin] = useState(false);
-  const hoverTimeout = useRef<ReturnType<typeof setTimeout>>();
+  const [placing, setPlacing] = useState(false);
+  const [paused, setPaused] = useState(false);
+  const [paymentMode, setPaymentMode] = useState<"mock" | "iota">("mock");
+  const [collectionAddress, setCollectionAddress] = useState<string>("");
+  const [season, setSeason] = useState<SeasonInfo | null>(null);
+
+  // IOTA payment hook
+  const { placePixel: iotaPlacePixel, signing } = useIotaPayment();
 
   // WebSocket for real-time pixel updates
   const handleRemotePixelUpdate = useCallback((x: number, y: number, color: number) => {
@@ -41,23 +47,52 @@ function App() {
     });
   }, [canvasWidth]);
 
-  const { userCount, connected } = useSocket({ onPixelUpdate: handleRemotePixelUpdate });
+  const handlePauseChange = useCallback((p: boolean) => setPaused(p), []);
+  const handleSeasonChange = useCallback((s: SeasonInfo | null) => setSeason(s), []);
+  const handleCanvasReset = useCallback(() => {
+    // Reload canvas binary from server after admin reset
+    fetchCanvasBinary().then((data) => setColorData(data));
+  }, []);
+  const { userCount, connected } = useSocket({ onPixelUpdate: handleRemotePixelUpdate, onPauseChange: handlePauseChange, onSeasonChange: handleSeasonChange, onCanvasReset: handleCanvasReset });
 
-  // Load canvas on mount
+  // Load canvas + config on mount
   useEffect(() => {
-    fetchCanvasBinary()
-      .then((data) => {
+    Promise.all([fetchCanvasBinary(), fetchConfig()])
+      .then(([data, { config, season: initialSeason }]) => {
         setColorData(data);
+        setPaymentMode(config.paymentMode);
+        if (config.collectionAddress) setCollectionAddress(config.collectionAddress);
+        if ((config as any).paused) setPaused(true);
+        if (initialSeason) setSeason(initialSeason);
         setLoading(false);
       })
       .catch(() => setLoading(false));
   }, []);
 
-  // Handle pixel hover
-  const handlePixelHover = useCallback((x: number, y: number) => {
-    setHoverCoords({ x, y });
-    clearTimeout(hoverTimeout.current);
-    hoverTimeout.current = setTimeout(async () => {
+  // ESC key deselects pixel
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setSelectedPixel(null);
+        setPixelInfo(null);
+        setNextPrice(null);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  // Handle pixel hover (no-op, kept for Canvas interface)
+  const handlePixelHover = useCallback((_x: number, _y: number) => {
+    // Hover is now a no-op — selection happens on click
+  }, []);
+
+  // Handle pixel click — selects the pixel and loads info
+  const handlePixelClick = useCallback(
+    async (x: number, y: number) => {
+      setSelectedPixel({ x, y });
+      setError(null);
+
       const { ok, payload } = await apiRequest<{ pixel: Pixel; nextPrice: number }>(
         `/api/canvas/pixel/${x}/${y}`
       );
@@ -65,12 +100,14 @@ function App() {
         setPixelInfo(payload.pixel);
         setNextPrice(payload.nextPrice);
       }
-    }, 50);
-  }, []);
+    },
+    []
+  );
 
-  // Handle pixel click
-  const handlePixelClick = useCallback(
-    async (x: number, y: number) => {
+  // Handle placing a pixel (the actual payment + placement)
+  const handlePlacePixel = useCallback(
+    async () => {
+      if (!selectedPixel || placing || signing || paused) return;
       setError(null);
 
       if (!wallet) {
@@ -78,42 +115,80 @@ function App() {
         return;
       }
 
-      const { ok, payload, status } = await apiRequest<{ pixel: Pixel; newBalance: number; error?: string }>(
-        "/api/canvas/pixel",
-        {
-          method: "POST",
-          body: JSON.stringify({ x, y, color: selectedColor }),
-          headers: { "X-Wallet-Id": wallet.walletId },
-        }
-      );
+      setPlacing(true);
+      try {
+        const { x, y } = selectedPixel;
+        let txDigest: string | undefined;
 
-      if (ok && payload.pixel) {
-        // Update local canvas
-        setColorData((prev) => {
-          if (!prev) return prev;
-          const next = new Uint8Array(prev);
-          next[y * canvasWidth + x] = selectedColor;
-          return next;
-        });
-        setPixelInfo(payload.pixel);
-        // Update wallet balance
-        if (typeof payload.newBalance === "number") {
-          setWallet((w) => (w ? { ...w, balance: payload.newBalance } : w));
+        // In IOTA mode, build + sign transaction first
+        if (paymentMode === "iota") {
+          if (!collectionAddress) {
+            setError("Collection address not configured");
+            return;
+          }
+          if (nextPrice === null) {
+            setError("Price not loaded");
+            return;
+          }
+
+          const digest = await iotaPlacePixel({
+            collectionAddress,
+            amount: nextPrice,
+            x,
+            y,
+            color: selectedColor,
+          });
+
+          if (!digest) {
+            // User rejected or error (useIotaPayment sets its own error)
+            return;
+          }
+          txDigest = digest;
         }
-        // Refresh price
-        const priceRes = await apiRequest<{ price: number }>(`/api/canvas/price/${x}/${y}`);
-        if (priceRes.ok) setNextPrice(priceRes.payload.price);
-      } else {
-        if (status === 429) {
-          setError("Too fast! Wait a moment before placing more pixels.");
-        } else if (status === 402) {
-          setError("Insufficient balance! Use the faucet to get more tokens.");
-        } else if (payload.error) {
-          setError(payload.error);
+
+        // Send to server (with txDigest in IOTA mode)
+        const { ok, payload, status } = await apiRequest<{ pixel: Pixel; newBalance: number; error?: string }>(
+          "/api/canvas/pixel",
+          {
+            method: "POST",
+            body: JSON.stringify({ x, y, color: selectedColor, txDigest }),
+            headers: { "X-Wallet-Id": wallet.walletId },
+          }
+        );
+
+        if (ok && payload.pixel) {
+          // Update local canvas
+          setColorData((prev) => {
+            if (!prev) return prev;
+            const next = new Uint8Array(prev);
+            next[y * canvasWidth + x] = selectedColor;
+            return next;
+          });
+          setPixelInfo(payload.pixel);
+          // Update wallet balance
+          if (typeof payload.newBalance === "number") {
+            setWallet((w) => (w ? { ...w, balance: payload.newBalance } : w));
+          }
+          // Refresh price
+          const priceRes = await apiRequest<{ price: number }>(`/api/canvas/price/${x}/${y}`);
+          if (priceRes.ok) setNextPrice(priceRes.payload.price);
+        } else {
+          if (status === 429) {
+            setError("Too fast! Wait a moment before placing more pixels.");
+          } else if (status === 402) {
+            setError("Insufficient balance! Use the faucet to get more tokens.");
+          } else if (status === 503 || payload.error === "PAUSED") {
+            setPaused(true);
+            setError("Canvas is paused by admin.");
+          } else if (payload.error) {
+            setError(payload.error);
+          }
         }
+      } finally {
+        setPlacing(false);
       }
     },
-    [selectedColor, canvasWidth, wallet]
+    [selectedPixel, selectedColor, canvasWidth, wallet, placing, signing, paused, paymentMode, collectionAddress, nextPrice, iotaPlacePixel]
   );
 
   // Auto-dismiss error after 3 seconds
@@ -132,9 +207,16 @@ function App() {
     setWallet((w) => (w ? { ...w, balance } : w));
   }, []);
 
+  // Deselect when clicking outside canvas
+  const handleDeselect = useCallback(() => {
+    setSelectedPixel(null);
+    setPixelInfo(null);
+    setNextPrice(null);
+  }, []);
+
   if (loading) {
     return (
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", color: "#888" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", color: "#718096" }}>
         Loading canvas...
       </div>
     );
@@ -150,65 +232,79 @@ function App() {
           left: 0,
           right: 0,
           height: 44,
-          background: "rgba(0,0,0,0.85)",
+          background: "rgba(255,255,255,0.97)",
+          backdropFilter: "blur(8px)",
           display: "flex",
           alignItems: "center",
           paddingLeft: 16,
           zIndex: 100,
-          borderBottom: "1px solid rgba(255,255,255,0.1)",
+          borderBottom: "1px solid rgba(0,0,0,0.08)",
         }}
       >
-        <span style={{ fontWeight: 700, fontSize: 16, color: "#fff" }}>IOTA Place</span>
-        <span style={{ marginLeft: 12, fontSize: 12, color: "#666" }}>Season 1</span>
-        <span style={{ marginLeft: 12, fontSize: 11, color: connected ? "#94E044" : "#E50000" }}>
+        <span style={{ fontWeight: 700, fontSize: 16, color: "#1a1a2e" }}>IOTA Place</span>
+        <span style={{ marginLeft: 12, fontSize: 12, color: "#a0aec0" }}>{season ? season.name : "Off-Season"}</span>
+        {paymentMode === "iota" && (
+          <span style={{ marginLeft: 8, fontSize: 10, color: "#16a34a", background: "rgba(22,163,74,0.1)", padding: "2px 6px", borderRadius: 4, fontWeight: 600 }}>
+            IOTA
+          </span>
+        )}
+        <span style={{ marginLeft: 12, fontSize: 11, color: connected ? "#16a34a" : "#dc2626" }}>
           {connected ? `${userCount} online` : "reconnecting..."}
         </span>
         <button
           onClick={() => setShowLeaderboard((s) => !s)}
           style={{
             marginLeft: 12,
-            background: showLeaderboard ? "rgba(255,255,255,0.15)" : "transparent",
-            border: "1px solid rgba(255,255,255,0.2)",
+            background: showLeaderboard ? "rgba(0,0,0,0.06)" : "transparent",
+            border: "1px solid rgba(0,0,0,0.12)",
             borderRadius: 6,
             padding: "4px 10px",
-            color: "#ccc",
+            color: "#4a5568",
             fontSize: 12,
             cursor: "pointer",
           }}
         >
           Leaderboard
         </button>
-        <button
-          onClick={() => setShowAdmin(true)}
-          style={{
-            marginLeft: 8,
-            background: "transparent",
-            border: "1px solid rgba(255,255,255,0.2)",
-            borderRadius: 6,
-            padding: "4px 10px",
-            color: "#888",
-            fontSize: 12,
-            cursor: "pointer",
-          }}
-        >
-          Admin
-        </button>
         {wallet && (
-          <span style={{ marginLeft: "auto", marginRight: 16, fontSize: 13, color: "#FFD635", fontWeight: 600 }}>
+          <span style={{ marginLeft: "auto", marginRight: 16, fontSize: 13, color: "#d97706", fontWeight: 600 }}>
             {wallet.balance.toFixed(2)} IOTA
           </span>
         )}
       </div>
 
+      {/* Pause banner */}
+      {paused && (
+        <div
+          style={{
+            position: "fixed",
+            top: 44,
+            left: 0,
+            right: 0,
+            background: "rgba(217,119,6,0.95)",
+            color: "#fff",
+            padding: "8px 0",
+            textAlign: "center",
+            fontSize: 14,
+            fontWeight: 700,
+            zIndex: 99,
+          }}
+        >
+          Canvas is paused
+        </div>
+      )}
+
       {/* Canvas */}
-      <div style={{ paddingTop: 44, width: "100%", height: "100%" }}>
+      <div style={{ paddingTop: paused ? 80 : 44, width: "100%", height: "100%" }}>
         <Canvas
           colorData={colorData}
           width={canvasWidth}
           height={canvasHeight}
           selectedColor={selectedColor}
+          selectedPixel={selectedPixel}
           onPixelClick={handlePixelClick}
           onPixelHover={handlePixelHover}
+          onDeselect={handleDeselect}
         />
       </div>
 
@@ -220,7 +316,7 @@ function App() {
             top: 56,
             left: "50%",
             transform: "translateX(-50%)",
-            background: "rgba(229,0,0,0.9)",
+            background: "rgba(220,38,38,0.95)",
             color: "#fff",
             padding: "8px 20px",
             borderRadius: 8,
@@ -239,16 +335,28 @@ function App() {
       <ColorPalette selectedColor={selectedColor} onColorSelect={setSelectedColor} />
 
       {/* Pixel Info */}
-      <PixelInfo pixel={pixelInfo} nextPrice={nextPrice} hoverCoords={hoverCoords} />
+      <PixelInfo
+        pixel={pixelInfo}
+        nextPrice={nextPrice}
+        selectedPixel={selectedPixel}
+        selectedColor={selectedColor}
+        wallet={wallet}
+        placing={placing || signing || paused}
+        onPlacePixel={handlePlacePixel}
+        onDeselect={handleDeselect}
+      />
 
       {/* Leaderboard */}
-      <Leaderboard visible={showLeaderboard} onClose={() => setShowLeaderboard(false)} />
+      <Leaderboard visible={showLeaderboard} onClose={() => setShowLeaderboard(false)} season={season} />
 
       {/* Wallet Panel */}
-      <WalletPanel wallet={wallet} onConnect={handleWalletConnect} onBalanceUpdate={handleBalanceUpdate} />
+      <WalletPanel
+        wallet={wallet}
+        paymentMode={paymentMode}
+        onConnect={handleWalletConnect}
+        onBalanceUpdate={handleBalanceUpdate}
+      />
 
-      {/* Admin Panel */}
-      <AdminPanel visible={showAdmin} onClose={() => setShowAdmin(false)} />
     </div>
   );
 }

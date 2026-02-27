@@ -1,21 +1,18 @@
 import crypto from "crypto";
-import { PaymentService, PaymentResult, WalletInfo } from "./payment.interface";
+import { PaymentService, PaymentResult, WalletInfo, WalletRecord } from "./payment.interface";
+import { upsertWalletToDb, updateWalletStatsInDb, loadWalletsFromDb } from "./wallet-db";
 
 const STARTING_BALANCE = 100;
-
-interface WalletRecord {
-  id: string;
-  address: string;
-  displayName: string;
-  balance: number;
-  totalSpent: number;
-  pixelCount: number;
-  isBanned: boolean;
-}
 
 export class MockPaymentService implements PaymentService {
   private wallets = new Map<string, WalletRecord>();
   private addressIndex = new Map<string, string>(); // address -> walletId
+
+  async loadFromDb(): Promise<void> {
+    const { wallets, addressIndex } = await loadWalletsFromDb();
+    this.wallets = wallets;
+    this.addressIndex = addressIndex;
+  }
 
   async connectWallet(address: string, displayName?: string): Promise<WalletInfo> {
     // Check if wallet with this address already exists
@@ -44,6 +41,7 @@ export class MockPaymentService implements PaymentService {
     };
     this.wallets.set(walletId, record);
     this.addressIndex.set(address, walletId);
+    upsertWalletToDb(record).catch(() => {});
 
     return {
       walletId: record.id,
@@ -89,6 +87,8 @@ export class MockPaymentService implements PaymentService {
     wallet.totalSpent += amount;
     wallet.pixelCount += 1;
     const txId = crypto.randomUUID();
+
+    updateWalletStatsInDb(walletId, wallet.totalSpent, wallet.pixelCount).catch(() => {});
 
     return {
       success: true,

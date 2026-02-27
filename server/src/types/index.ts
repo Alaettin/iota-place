@@ -21,14 +21,18 @@ export interface CanvasConfig {
   basePrice: number;
   priceFactor: number;
   colorCount: number;
+  paymentMode: "mock" | "iota";
+  collectionAddress?: string;
 }
 
 export const DEFAULT_CONFIG: CanvasConfig = {
   width: 250,
   height: 250,
-  basePrice: 0.1,
+  basePrice: 0.5,
   priceFactor: 1.1,
   colorCount: 32,
+  paymentMode: (process.env.PAYMENT_MODE as "mock" | "iota") || "mock",
+  collectionAddress: process.env.IOTA_COLLECTION_ADDRESS || undefined,
 };
 
 export const COLOR_PALETTE = [

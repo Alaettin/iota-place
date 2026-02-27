@@ -6,8 +6,10 @@ interface CanvasProps {
   width: number;
   height: number;
   selectedColor: number;
+  selectedPixel: { x: number; y: number } | null;
   onPixelClick: (x: number, y: number) => void;
   onPixelHover: (x: number, y: number) => void;
+  onDeselect: () => void;
 }
 
 function hexToRgb(hex: string): [number, number, number] {
@@ -15,8 +17,9 @@ function hexToRgb(hex: string): [number, number, number] {
   return [(val >> 16) & 255, (val >> 8) & 255, val & 255];
 }
 
-export default function Canvas({ colorData, width, height, selectedColor, onPixelClick, onPixelHover }: CanvasProps) {
+export default function Canvas({ colorData, width, height, selectedColor, selectedPixel, onPixelClick, onPixelHover, onDeselect }: CanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const overlayRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [zoom, setZoom] = useState(3);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
@@ -50,8 +53,33 @@ export default function Canvas({ colorData, width, height, selectedColor, onPixe
     drawCanvas();
   }, [drawCanvas]);
 
-  // Center canvas on mount
+  // Draw selection overlay
   useEffect(() => {
+    const overlay = overlayRef.current;
+    if (!overlay) return;
+    const ctx = overlay.getContext("2d");
+    if (!ctx) return;
+
+    overlay.width = width;
+    overlay.height = height;
+    ctx.clearRect(0, 0, width, height);
+
+    if (selectedPixel) {
+      const { x, y } = selectedPixel;
+      // Outer border (dark)
+      const lw = Math.max(2 / zoom, 0.15);
+      ctx.strokeStyle = "#1a1a2e";
+      ctx.lineWidth = lw;
+      ctx.strokeRect(x - lw, y - lw, 1 + lw * 2, 1 + lw * 2);
+      // Inner border (white for contrast)
+      ctx.strokeStyle = "#ffffff";
+      ctx.lineWidth = lw * 0.6;
+      ctx.strokeRect(x, y, 1, 1);
+    }
+  }, [selectedPixel, width, height, zoom]);
+
+  // Center canvas helper
+  const centerCanvas = useCallback(() => {
     const container = containerRef.current;
     if (!container) return;
     const rect = container.getBoundingClientRect();
@@ -60,6 +88,11 @@ export default function Canvas({ colorData, width, height, selectedColor, onPixe
       y: (rect.height - height * zoom) / 2,
     });
   }, [width, height, zoom]);
+
+  // Center canvas on mount
+  useEffect(() => {
+    centerCanvas();
+  }, [centerCanvas]);
 
   // Convert screen coords to pixel coords
   const screenToPixel = useCallback(
@@ -137,11 +170,15 @@ export default function Canvas({ colorData, width, height, selectedColor, onPixe
     (e: React.MouseEvent) => {
       if (!isDragging.current && e.button === 0) {
         const pixel = screenToPixel(e.clientX, e.clientY);
-        if (pixel) onPixelClick(pixel.x, pixel.y);
+        if (pixel) {
+          onPixelClick(pixel.x, pixel.y);
+        } else {
+          onDeselect();
+        }
       }
       isDragging.current = false;
     },
-    [screenToPixel, onPixelClick]
+    [screenToPixel, onPixelClick, onDeselect]
   );
 
   return (
@@ -152,7 +189,7 @@ export default function Canvas({ colorData, width, height, selectedColor, onPixe
         height: "100%",
         overflow: "hidden",
         cursor: isDragging.current ? "grabbing" : "crosshair",
-        background: "#111",
+        background: "#e5e7eb",
       }}
       onWheel={handleWheel}
       onMouseDown={handleMouseDown}
@@ -166,9 +203,20 @@ export default function Canvas({ colorData, width, height, selectedColor, onPixe
           imageRendering: "pixelated",
           transform: `translate(${offset.x}px, ${offset.y}px) scale(${zoom})`,
           transformOrigin: "0 0",
+          position: "absolute",
         }}
       />
-      {/* Selected color cursor preview */}
+      <canvas
+        ref={overlayRef}
+        style={{
+          imageRendering: "pixelated",
+          transform: `translate(${offset.x}px, ${offset.y}px) scale(${zoom})`,
+          transformOrigin: "0 0",
+          position: "absolute",
+          pointerEvents: "none",
+        }}
+      />
+      {/* Zoom indicator */}
       <div
         style={{
           position: "fixed",
@@ -177,11 +225,14 @@ export default function Canvas({ colorData, width, height, selectedColor, onPixe
           display: "flex",
           alignItems: "center",
           gap: 8,
-          background: "rgba(0,0,0,0.7)",
+          background: "rgba(255,255,255,0.9)",
+          backdropFilter: "blur(4px)",
           padding: "6px 12px",
           borderRadius: 6,
           fontSize: 13,
-          color: "#ccc",
+          color: "#4a5568",
+          zIndex: 10,
+          border: "1px solid rgba(0,0,0,0.08)",
         }}
       >
         <div
@@ -189,11 +240,27 @@ export default function Canvas({ colorData, width, height, selectedColor, onPixe
             width: 16,
             height: 16,
             background: COLOR_PALETTE[selectedColor],
-            border: "2px solid #fff",
+            border: "2px solid #1a1a2e",
             borderRadius: 3,
           }}
         />
         Zoom: {zoom.toFixed(1)}x
+        <button
+          onClick={centerCanvas}
+          style={{
+            background: "rgba(0,0,0,0.06)",
+            border: "1px solid rgba(0,0,0,0.12)",
+            borderRadius: 4,
+            padding: "2px 8px",
+            fontSize: 14,
+            color: "#4a5568",
+            cursor: "pointer",
+            lineHeight: 1,
+          }}
+          title="Center canvas"
+        >
+          ⊕
+        </button>
       </div>
     </div>
   );

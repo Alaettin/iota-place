@@ -11,21 +11,26 @@ interface LeaderboardEntry {
 interface LeaderboardProps {
   visible: boolean;
   onClose: () => void;
+  season?: { id: number; name: string } | null;
 }
 
-export default function Leaderboard({ visible, onClose }: LeaderboardProps) {
+export default function Leaderboard({ visible, onClose, season }: LeaderboardProps) {
   const [type, setType] = useState<"pixels" | "spent">("pixels");
+  const [scope, setScope] = useState<"alltime" | "season">("alltime");
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
-  const [stats, setStats] = useState<{ totalPlacements: number; totalWallets: number; totalSpent: number } | null>(null);
+
+  // Reset scope to alltime when season ends
+  useEffect(() => {
+    if (!season && scope === "season") setScope("alltime");
+  }, [season, scope]);
 
   const fetchData = useCallback(async () => {
-    const [lbRes, statsRes] = await Promise.all([
-      apiRequest<{ leaderboard: LeaderboardEntry[] }>(`/api/leaderboard?type=${type}`),
-      apiRequest<{ stats: { totalPlacements: number; totalWallets: number; totalSpent: number } }>("/api/stats"),
-    ]);
+    const lbUrl = scope === "season" && season
+      ? `/api/leaderboard/season/${season.id}?type=${type}`
+      : `/api/leaderboard?type=${type}`;
+    const lbRes = await apiRequest<{ leaderboard: LeaderboardEntry[] }>(lbUrl);
     if (lbRes.ok) setEntries(lbRes.payload.leaderboard);
-    if (statsRes.ok) setStats(statsRes.payload.stats);
-  }, [type]);
+  }, [type, scope, season]);
 
   useEffect(() => {
     if (!visible) return;
@@ -42,50 +47,63 @@ export default function Leaderboard({ visible, onClose }: LeaderboardProps) {
         position: "fixed",
         top: 56,
         left: 12,
-        background: "rgba(0,0,0,0.9)",
+        background: "rgba(255,255,255,0.95)",
+        backdropFilter: "blur(8px)",
         padding: 16,
         borderRadius: 10,
         width: 300,
         maxHeight: "calc(100vh - 120px)",
         overflowY: "auto",
-        boxShadow: "0 4px 20px rgba(0,0,0,0.5)",
+        boxShadow: "0 2px 16px rgba(0,0,0,0.08)",
+        border: "1px solid rgba(0,0,0,0.08)",
         zIndex: 150,
       }}
     >
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-        <span style={{ fontWeight: 700, fontSize: 15, color: "#fff" }}>Leaderboard</span>
+        <span style={{ fontWeight: 700, fontSize: 15, color: "#1a1a2e" }}>Leaderboard</span>
         <button
           onClick={onClose}
-          style={{ background: "none", border: "none", color: "#888", fontSize: 18, cursor: "pointer" }}
+          style={{ background: "none", border: "none", color: "#a0aec0", fontSize: 18, cursor: "pointer" }}
         >
           x
         </button>
       </div>
 
-      {/* Stats */}
-      {stats && (
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1fr 1fr 1fr",
-            gap: 8,
-            marginBottom: 14,
-            fontSize: 11,
-            textAlign: "center",
-          }}
-        >
-          <div style={{ background: "rgba(255,255,255,0.06)", padding: 6, borderRadius: 6 }}>
-            <div style={{ color: "#fff", fontWeight: 700, fontSize: 14 }}>{stats.totalPlacements}</div>
-            <div style={{ color: "#888" }}>Pixels</div>
-          </div>
-          <div style={{ background: "rgba(255,255,255,0.06)", padding: 6, borderRadius: 6 }}>
-            <div style={{ color: "#fff", fontWeight: 700, fontSize: 14 }}>{stats.totalWallets}</div>
-            <div style={{ color: "#888" }}>Wallets</div>
-          </div>
-          <div style={{ background: "rgba(255,255,255,0.06)", padding: 6, borderRadius: 6 }}>
-            <div style={{ color: "#FFD635", fontWeight: 700, fontSize: 14 }}>{stats.totalSpent.toFixed(1)}</div>
-            <div style={{ color: "#888" }}>IOTA spent</div>
-          </div>
+      {/* Scope toggle */}
+      {season && (
+        <div style={{ display: "flex", gap: 4, marginBottom: 8 }}>
+          <button
+            onClick={() => setScope("alltime")}
+            style={{
+              flex: 1,
+              padding: "5px 0",
+              background: scope === "alltime" ? "rgba(0,0,0,0.06)" : "transparent",
+              border: "1px solid rgba(0,0,0,0.1)",
+              borderRadius: 6,
+              color: scope === "alltime" ? "#1a1a2e" : "#a0aec0",
+              fontSize: 11,
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+          >
+            All Time
+          </button>
+          <button
+            onClick={() => setScope("season")}
+            style={{
+              flex: 1,
+              padding: "5px 0",
+              background: scope === "season" ? "rgba(22,163,74,0.1)" : "transparent",
+              border: `1px solid ${scope === "season" ? "rgba(22,163,74,0.3)" : "rgba(0,0,0,0.1)"}`,
+              borderRadius: 6,
+              color: scope === "season" ? "#16a34a" : "#a0aec0",
+              fontSize: 11,
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+          >
+            {season.name}
+          </button>
         </div>
       )}
 
@@ -98,10 +116,10 @@ export default function Leaderboard({ visible, onClose }: LeaderboardProps) {
             style={{
               flex: 1,
               padding: "6px 0",
-              background: type === t ? "rgba(255,255,255,0.15)" : "transparent",
-              border: "1px solid rgba(255,255,255,0.15)",
+              background: type === t ? "rgba(0,0,0,0.06)" : "transparent",
+              border: "1px solid rgba(0,0,0,0.1)",
               borderRadius: 6,
-              color: type === t ? "#fff" : "#888",
+              color: type === t ? "#1a1a2e" : "#a0aec0",
               fontSize: 12,
               fontWeight: 600,
               cursor: "pointer",
@@ -114,7 +132,7 @@ export default function Leaderboard({ visible, onClose }: LeaderboardProps) {
 
       {/* Entries */}
       {entries.length === 0 ? (
-        <div style={{ color: "#666", fontSize: 12, textAlign: "center", padding: 20 }}>
+        <div style={{ color: "#a0aec0", fontSize: 12, textAlign: "center", padding: 20 }}>
           No data yet. Start placing pixels!
         </div>
       ) : (
@@ -127,7 +145,7 @@ export default function Leaderboard({ visible, onClose }: LeaderboardProps) {
                 alignItems: "center",
                 gap: 8,
                 padding: "6px 8px",
-                background: e.rank <= 3 ? "rgba(255,214,53,0.08)" : "transparent",
+                background: e.rank <= 3 ? "rgba(217,119,6,0.06)" : "transparent",
                 borderRadius: 6,
                 fontSize: 12,
               }}
@@ -137,15 +155,15 @@ export default function Leaderboard({ visible, onClose }: LeaderboardProps) {
                   width: 24,
                   textAlign: "center",
                   fontWeight: 700,
-                  color: e.rank === 1 ? "#FFD635" : e.rank === 2 ? "#E4E4E4" : e.rank === 3 ? "#A06A42" : "#888",
+                  color: e.rank === 1 ? "#d97706" : e.rank === 2 ? "#718096" : e.rank === 3 ? "#A06A42" : "#a0aec0",
                 }}
               >
                 {e.rank}
               </span>
-              <span style={{ flex: 1, color: "#ccc", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              <span style={{ flex: 1, color: "#4a5568", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                 {e.displayName}
               </span>
-              <span style={{ color: type === "spent" ? "#FFD635" : "#94E044", fontWeight: 600 }}>
+              <span style={{ color: type === "spent" ? "#d97706" : "#16a34a", fontWeight: 600 }}>
                 {type === "spent" ? `${e.score.toFixed(2)} IOTA` : `${e.score} px`}
               </span>
             </div>

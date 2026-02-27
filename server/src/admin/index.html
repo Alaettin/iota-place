@@ -1,0 +1,1105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>IOTA Place - Admin</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f7f8fa; color: #1a1a2e; }
+    .container { max-width: 860px; margin: 0 auto; padding: 24px; }
+    h1 { font-size: 22px; font-weight: 700; }
+    h1 span { color: #a0aec0; font-weight: 400; font-size: 13px; margin-left: 8px; }
+    .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
+    .btn { padding: 8px 16px; border: 1px solid rgba(0,0,0,0.12); border-radius: 8px; background: #fff; color: #4a5568; font-size: 13px; cursor: pointer; font-weight: 500; }
+    .btn:hover { background: rgba(0,0,0,0.04); }
+    .btn-primary { background: #3b82f6; color: #fff; border-color: #3b82f6; }
+    .btn-primary:hover { background: #2563eb; }
+    .btn-danger { background: rgba(220,38,38,0.08); color: #dc2626; border-color: rgba(220,38,38,0.2); }
+    .btn-success { background: rgba(22,163,74,0.08); color: #16a34a; border-color: rgba(22,163,74,0.2); }
+    .btn-warning { background: rgba(217,119,6,0.08); color: #d97706; border-color: rgba(217,119,6,0.2); }
+    .btn-sm { padding: 4px 10px; font-size: 11px; border-radius: 4px; }
+
+    /* Login */
+    .login-wrap { display: flex; align-items: center; justify-content: center; height: 100vh; }
+    .login-box { width: 360px; text-align: center; }
+    .login-box h2 { margin-bottom: 20px; color: #1a1a2e; }
+    .login-box input { width: 100%; padding: 10px 12px; background: rgba(0,0,0,0.04); border: 1px solid rgba(0,0,0,0.12); border-radius: 8px; font-size: 14px; outline: none; margin-bottom: 12px; }
+    .login-box .error { color: #dc2626; font-size: 13px; margin-bottom: 10px; }
+
+    /* Stats */
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; margin-bottom: 24px; }
+    .stat-card { background: #fff; padding: 14px; border-radius: 10px; text-align: center; border: 1px solid rgba(0,0,0,0.06); }
+    .stat-value { font-weight: 700; font-size: 22px; }
+    .stat-label { color: #a0aec0; font-size: 11px; margin-top: 4px; }
+
+    /* Pause toggle */
+    .pause-bar { display: flex; align-items: center; gap: 12px; background: #fff; padding: 12px 16px; border-radius: 10px; margin-bottom: 24px; border: 1px solid rgba(0,0,0,0.06); }
+    .pause-bar .status { font-weight: 600; font-size: 14px; }
+    .pause-bar .status.active { color: #16a34a; }
+    .pause-bar .status.paused { color: #d97706; }
+
+    /* Canvas Viewer */
+    .canvas-section { background: #fff; border-radius: 10px; border: 1px solid rgba(0,0,0,0.06); margin-bottom: 24px; overflow: hidden; }
+    .canvas-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid rgba(0,0,0,0.06); }
+    .canvas-header h3 { margin: 0; font-size: 15px; }
+    .canvas-toolbar { display: flex; align-items: center; gap: 6px; }
+    .tool-btn { padding: 4px 12px; border: 1px solid rgba(0,0,0,0.12); border-radius: 6px; background: #fff; color: #4a5568; font-size: 12px; cursor: pointer; font-weight: 500; }
+    .tool-btn:hover { background: rgba(0,0,0,0.04); }
+    .tool-btn.active { background: #3b82f6; color: #fff; border-color: #3b82f6; }
+    .canvas-viewport { position: relative; width: 100%; height: 500px; background: #e5e7eb; overflow: hidden; cursor: crosshair; }
+    .canvas-viewport.dragging { cursor: grabbing; }
+    .canvas-coords { position: absolute; top: 8px; left: 8px; background: rgba(0,0,0,0.7); color: #fff; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-family: monospace; z-index: 5; pointer-events: none; }
+    .canvas-zoom-info { position: absolute; bottom: 8px; left: 8px; background: rgba(255,255,255,0.9); padding: 4px 10px; border-radius: 6px; font-size: 12px; color: #4a5568; border: 1px solid rgba(0,0,0,0.08); z-index: 5; pointer-events: none; }
+    .selection-rect { position: absolute; border: 2px dashed #dc2626; background: rgba(220,38,38,0.1); pointer-events: none; z-index: 4; display: none; align-items: center; justify-content: center; color: #dc2626; font-size: 11px; font-weight: 600; }
+
+    /* Pixel Info Panel */
+    .pixel-panel { position: absolute; top: 8px; right: 8px; background: rgba(255,255,255,0.95); backdrop-filter: blur(8px); padding: 14px; border-radius: 10px; min-width: 240px; max-width: 300px; font-size: 12px; color: #4a5568; box-shadow: 0 2px 12px rgba(0,0,0,0.1); border: 1px solid rgba(0,0,0,0.08); z-index: 10; max-height: 480px; overflow-y: auto; display: none; }
+    .pixel-panel h4 { margin: 0 0 8px; font-size: 14px; color: #1a1a2e; }
+    .pixel-panel .field { margin-bottom: 6px; }
+    .pixel-panel .field-label { color: #a0aec0; font-size: 11px; }
+    .pixel-panel .field-value { font-weight: 600; color: #1a1a2e; }
+    .pixel-panel .divider { border-top: 1px solid rgba(0,0,0,0.08); margin: 8px 0; }
+    .pixel-panel .color-swatch { display: inline-block; width: 14px; height: 14px; border-radius: 3px; border: 1px solid rgba(0,0,0,0.15); vertical-align: middle; margin-right: 6px; }
+    .pixel-panel .action-row { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+    .history-item { padding: 4px 0; border-bottom: 1px solid rgba(0,0,0,0.04); font-size: 11px; }
+    .history-item:last-child { border-bottom: none; }
+
+    /* Search */
+    .search-input { width: 100%; padding: 8px 12px; background: #fff; border: 1px solid rgba(0,0,0,0.1); border-radius: 8px; font-size: 13px; outline: none; margin-bottom: 12px; }
+
+    /* Table */
+    table { width: 100%; border-collapse: collapse; font-size: 12px; background: #fff; border-radius: 10px; overflow: hidden; border: 1px solid rgba(0,0,0,0.06); }
+    thead tr { color: #a0aec0; text-align: left; border-bottom: 1px solid rgba(0,0,0,0.08); }
+    th, td { padding: 10px 8px; }
+    tbody tr { border-bottom: 1px solid rgba(0,0,0,0.04); }
+    tbody tr:last-child { border-bottom: none; }
+    .addr { max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .banned-row { color: #dc2626; }
+
+    .empty-msg { text-align: center; color: #a0aec0; padding: 24px; }
+    #dashboard { display: none; }
+
+    /* Custom Modal */
+    .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.35); backdrop-filter: blur(2px); z-index: 1000; display: flex; align-items: center; justify-content: center; }
+    .modal-box { background: #fff; border-radius: 12px; padding: 24px; min-width: 320px; max-width: 420px; box-shadow: 0 8px 32px rgba(0,0,0,0.18); border: 1px solid rgba(0,0,0,0.08); }
+    .modal-box h3 { font-size: 16px; margin-bottom: 8px; color: #1a1a2e; }
+    .modal-box p { font-size: 13px; color: #4a5568; margin-bottom: 18px; line-height: 1.5; }
+    .modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
+  </style>
+</head>
+<body>
+
+<!-- Login Screen -->
+<div id="login" class="login-wrap">
+  <div class="login-box">
+    <h2>IOTA Place Admin</h2>
+    <div id="login-error" class="error" style="display:none"></div>
+    <input type="password" id="pw-input" placeholder="Admin Password" />
+    <button class="btn btn-primary" style="width:100%" onclick="handleLogin()">Login</button>
+  </div>
+</div>
+
+<!-- Dashboard -->
+<div id="dashboard" class="container">
+  <div class="header">
+    <h1>IOTA Place <span>Admin</span></h1>
+    <button class="btn" onclick="handleLogout()">Logout</button>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats-grid" id="stats-grid"></div>
+
+  <!-- Pause -->
+  <div class="pause-bar">
+    <span>Canvas Status:</span>
+    <span class="status" id="pause-status">Loading...</span>
+    <div style="flex:1"></div>
+    <button class="btn btn-warning btn-sm" id="pause-btn" onclick="togglePause()">Pause</button>
+  </div>
+
+  <!-- Season Management -->
+  <div style="background:#fff;border-radius:10px;border:1px solid rgba(0,0,0,0.06);margin-bottom:24px;padding:16px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+      <h3 style="font-size:15px;margin:0">Season Management</h3>
+      <span id="season-badge" style="font-size:12px;font-weight:600;padding:3px 10px;border-radius:6px;background:rgba(160,174,192,0.15);color:#a0aec0">Off-Season</span>
+    </div>
+    <div id="season-info" style="margin-bottom:12px">
+      <div style="font-size:12px;color:#a0aec0">Loading...</div>
+    </div>
+    <div id="season-actions" style="display:flex;gap:8px;flex-wrap:wrap"></div>
+    <div id="season-start-form" style="display:none;margin-top:12px">
+      <input type="text" id="season-name-input" class="search-input" placeholder="Season name (e.g. Season 2)" style="margin-bottom:8px" />
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-primary" onclick="confirmStartSeason()">Start Season</button>
+        <button class="btn" onclick="hideStartForm()">Cancel</button>
+      </div>
+    </div>
+    <div id="season-history" style="margin-top:16px;display:none">
+      <h4 style="font-size:13px;color:#a0aec0;margin-bottom:8px">Past Seasons</h4>
+      <div id="season-history-list"></div>
+    </div>
+  </div>
+
+  <!-- Canvas Viewer -->
+  <div class="canvas-section">
+    <div class="canvas-header">
+      <h3>Canvas Viewer</h3>
+      <div class="canvas-toolbar">
+        <button class="tool-btn active" data-tool="inspect" onclick="setTool('inspect')">Inspect</button>
+        <button class="tool-btn" data-tool="reset-area" onclick="setTool('reset-area')">Area Reset</button>
+        <button class="btn btn-sm" onclick="centerAdminCanvas()">Center</button>
+        <button class="btn btn-primary btn-sm" onclick="refreshCanvas()">Refresh</button>
+      </div>
+    </div>
+    <div class="canvas-viewport" id="canvas-viewport">
+      <canvas id="admin-canvas"></canvas>
+      <canvas id="admin-overlay" style="position:absolute;top:0;left:0;pointer-events:none;"></canvas>
+      <div class="canvas-coords" id="canvas-coords" style="display:none">(0, 0)</div>
+      <div class="canvas-zoom-info" id="zoom-info">Zoom: 2.0x</div>
+      <div id="selection-rect" class="selection-rect"></div>
+      <div id="pixel-panel" class="pixel-panel"></div>
+    </div>
+  </div>
+
+  <!-- Wallets -->
+  <h3 style="margin-bottom:12px">Wallet Management</h3>
+  <input type="text" class="search-input" id="search-input" placeholder="Search wallets..." oninput="fetchWallets()" />
+
+  <table>
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Address</th>
+        <th>Balance</th>
+        <th>Spent</th>
+        <th>Pixels</th>
+        <th>Status</th>
+        <th>Action</th>
+      </tr>
+    </thead>
+    <tbody id="wallet-tbody">
+      <tr><td colspan="7" class="empty-msg">Loading...</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<script>
+  let adminPw = localStorage.getItem("iota-place-admin-pw") || "";
+  let isPaused = false;
+  let refreshTimer = null;
+
+  const $ = (id) => document.getElementById(id);
+
+  // Pre-fill password from localStorage
+  $("pw-input").value = adminPw;
+  $("pw-input").addEventListener("keydown", (e) => { if (e.key === "Enter") handleLogin(); });
+
+  // Auto-login if password stored
+  if (adminPw) {
+    handleLogin();
+  }
+
+  function headers() {
+    return { "Content-Type": "application/json", "X-Admin-Password": adminPw };
+  }
+
+  async function handleLogin() {
+    adminPw = $("pw-input").value;
+    $("login-error").style.display = "none";
+
+    try {
+      const res = await fetch("/api/admin/stats", { headers: headers() });
+      if (res.ok) {
+        localStorage.setItem("iota-place-admin-pw", adminPw);
+        $("login").style.display = "none";
+        $("dashboard").style.display = "block";
+        const data = await res.json();
+        renderStats(data.stats);
+        fetchWallets();
+        fetchSeason();
+        initCanvas();
+        // Auto-refresh every 10s
+        refreshTimer = setInterval(() => { fetchStats(); fetchWallets(); fetchSeason(); }, 10000);
+      } else {
+        $("login-error").textContent = "Invalid admin password";
+        $("login-error").style.display = "block";
+      }
+    } catch (err) {
+      $("login-error").textContent = "Connection failed";
+      $("login-error").style.display = "block";
+    }
+  }
+
+  function handleLogout() {
+    if (refreshTimer) clearInterval(refreshTimer);
+    localStorage.removeItem("iota-place-admin-pw");
+    adminPw = "";
+    $("pw-input").value = "";
+    $("login").style.display = "flex";
+    $("dashboard").style.display = "none";
+  }
+
+  async function fetchStats() {
+    try {
+      const res = await fetch("/api/admin/stats", { headers: headers() });
+      if (!res.ok) return;
+      const data = await res.json();
+      renderStats(data.stats);
+    } catch {}
+  }
+
+  function renderStats(stats) {
+    isPaused = !!stats.paused;
+    updatePauseUI();
+
+    const items = [
+      { label: "Pixels Placed", value: stats.totalPlacements, color: "#16a34a" },
+      { label: "Wallets", value: stats.totalWallets, color: "#1a1a2e" },
+      { label: "Banned", value: stats.bannedWallets, color: "#dc2626" },
+      { label: "IOTA Spent", value: Number(stats.totalSpent).toFixed(2), color: "#d97706" },
+      { label: "Canvas", value: stats.canvasSize, color: "#4a5568" },
+    ];
+
+    $("stats-grid").innerHTML = items.map((s) => `
+      <div class="stat-card">
+        <div class="stat-value" style="color:${s.color}">${s.value}</div>
+        <div class="stat-label">${s.label}</div>
+      </div>
+    `).join("");
+  }
+
+  function updatePauseUI() {
+    const el = $("pause-status");
+    const btn = $("pause-btn");
+    if (isPaused) {
+      el.textContent = "PAUSED";
+      el.className = "status paused";
+      btn.textContent = "Resume";
+      btn.className = "btn btn-success btn-sm";
+    } else {
+      el.textContent = "ACTIVE";
+      el.className = "status active";
+      btn.textContent = "Pause";
+      btn.className = "btn btn-warning btn-sm";
+    }
+  }
+
+  async function togglePause() {
+    try {
+      const res = await fetch("/api/admin/pause", {
+        method: "PUT",
+        headers: headers(),
+        body: JSON.stringify({ paused: !isPaused }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        isPaused = data.paused;
+        updatePauseUI();
+      }
+    } catch {}
+  }
+
+  async function fetchWallets() {
+    const search = $("search-input").value;
+    try {
+      const res = await fetch(`/api/admin/wallets?search=${encodeURIComponent(search)}`, { headers: headers() });
+      if (!res.ok) return;
+      const data = await res.json();
+      renderWallets(data.wallets);
+    } catch {}
+  }
+
+  function renderWallets(wallets) {
+    const tbody = $("wallet-tbody");
+    if (!wallets.length) {
+      tbody.innerHTML = '<tr><td colspan="7" class="empty-msg">No wallets found</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = wallets.map((w) => `
+      <tr class="${w.isBanned ? 'banned-row' : ''}">
+        <td>${esc(w.displayName)}</td>
+        <td class="addr" title="${esc(w.address)}">${esc(w.address)}</td>
+        <td>${Number(w.balance).toFixed(2)}</td>
+        <td style="color:#d97706">${Number(w.totalSpent).toFixed(2)}</td>
+        <td>${w.pixelCount}</td>
+        <td>
+          <span style="color:${w.isBanned ? '#dc2626' : '#16a34a'};font-weight:600">
+            ${w.isBanned ? 'BANNED' : 'Active'}
+          </span>
+        </td>
+        <td>
+          <button class="btn ${w.isBanned ? 'btn-success' : 'btn-danger'} btn-sm" onclick="toggleBan('${w.id}', ${!w.isBanned})">
+            ${w.isBanned ? 'Unban' : 'Ban'}
+          </button>
+        </td>
+      </tr>
+    `).join("");
+  }
+
+  async function toggleBan(walletId, banned) {
+    try {
+      await fetch(`/api/admin/wallets/${walletId}/ban`, {
+        method: "PUT",
+        headers: headers(),
+        body: JSON.stringify({ banned }),
+      });
+      fetchWallets();
+    } catch {}
+  }
+
+  function esc(str) {
+    const d = document.createElement("div");
+    d.textContent = str;
+    return d.innerHTML;
+  }
+
+  // =============================================
+  // Canvas Viewer
+  // =============================================
+
+  let canvasWidth = 250;
+  let canvasHeight = 250;
+  let colorPalette = [];
+  let colorData = null;
+  let cvZoom = 2;
+  let cvOffset = { x: 0, y: 0 };
+  let cvDragging = false;
+  let cvDragStart = { x: 0, y: 0 };
+  let cvLastOffset = { x: 0, y: 0 };
+  let currentTool = "inspect";
+  let selectedPx = null;
+  let areaStart = null;
+  let areaEnd = null;
+  let areaSelecting = false;
+
+  // --- Custom modal dialog (replaces native confirm/alert) ---
+
+  function showModal(title, message, buttons) {
+    return new Promise((resolve) => {
+      const overlay = document.createElement("div");
+      overlay.className = "modal-overlay";
+
+      const box = document.createElement("div");
+      box.className = "modal-box";
+      box.innerHTML = `<h3>${esc(title)}</h3><p>${esc(message)}</p>`;
+
+      const actions = document.createElement("div");
+      actions.className = "modal-actions";
+
+      buttons.forEach((b) => {
+        const btn = document.createElement("button");
+        btn.className = `btn ${b.cls || ""}`;
+        btn.textContent = b.label;
+        btn.onclick = () => { overlay.remove(); resolve(b.value); };
+        actions.appendChild(btn);
+      });
+
+      box.appendChild(actions);
+      overlay.appendChild(box);
+      overlay.addEventListener("mousedown", (e) => { if (e.target === overlay) { overlay.remove(); resolve(false); } });
+      document.body.appendChild(overlay);
+    });
+  }
+
+  function showConfirm(title, message, confirmLabel = "Confirm", confirmCls = "btn-danger") {
+    return showModal(title, message, [
+      { label: "Cancel", value: false, cls: "" },
+      { label: confirmLabel, value: true, cls: confirmCls },
+    ]);
+  }
+
+  function showAlert(title, message) {
+    return showModal(title, message, [
+      { label: "OK", value: true, cls: "btn-primary" },
+    ]);
+  }
+
+  async function initCanvas() {
+    try {
+      const res = await fetch("/api/canvas/config", { headers: headers() });
+      if (!res.ok) return;
+      const data = await res.json();
+      canvasWidth = data.config.width;
+      canvasHeight = data.config.height;
+      colorPalette = data.palette;
+    } catch { return; }
+
+    await refreshCanvas();
+
+    const vp = $("canvas-viewport");
+    vp.addEventListener("wheel", onCanvasWheel, { passive: false });
+    vp.addEventListener("mousedown", onCanvasMouseDown);
+    vp.addEventListener("mousemove", onCanvasMouseMove);
+    vp.addEventListener("mouseup", onCanvasMouseUp);
+    vp.addEventListener("mouseleave", onCanvasMouseLeave);
+    vp.addEventListener("contextmenu", (e) => e.preventDefault());
+
+    // Prevent clicks inside pixel-panel from triggering canvas selection
+    const pixelPanel = $("pixel-panel");
+    pixelPanel.addEventListener("mousedown", (e) => e.stopPropagation());
+    pixelPanel.addEventListener("mouseup", (e) => e.stopPropagation());
+    pixelPanel.addEventListener("click", (e) => e.stopPropagation());
+
+    centerAdminCanvas();
+  }
+
+  async function refreshCanvas() {
+    try {
+      const res = await fetch("/api/canvas", {
+        headers: { "X-Admin-Password": adminPw },
+      });
+      if (!res.ok) return;
+      const buf = await res.arrayBuffer();
+      colorData = new Uint8Array(buf);
+      drawAdminCanvas();
+    } catch {}
+  }
+
+  function hexToRgb(hex) {
+    const val = parseInt(hex.slice(1), 16);
+    return [(val >> 16) & 255, (val >> 8) & 255, val & 255];
+  }
+
+  function drawAdminCanvas() {
+    const canvas = $("admin-canvas");
+    if (!canvas || !colorData) return;
+    const ctx = canvas.getContext("2d");
+    canvas.width = canvasWidth;
+    canvas.height = canvasHeight;
+
+    const imageData = ctx.createImageData(canvasWidth, canvasHeight);
+    for (let i = 0; i < colorData.length; i++) {
+      const [r, g, b] = hexToRgb(colorPalette[colorData[i]] || "#FFFFFF");
+      const off = i * 4;
+      imageData.data[off] = r;
+      imageData.data[off + 1] = g;
+      imageData.data[off + 2] = b;
+      imageData.data[off + 3] = 255;
+    }
+    ctx.putImageData(imageData, 0, 0);
+    applyCanvasTransform();
+  }
+
+  function applyCanvasTransform() {
+    const canvas = $("admin-canvas");
+    const overlay = $("admin-overlay");
+    if (!canvas) return;
+
+    const style = `translate(${cvOffset.x}px, ${cvOffset.y}px) scale(${cvZoom})`;
+    canvas.style.transform = style;
+    canvas.style.transformOrigin = "0 0";
+    canvas.style.imageRendering = "pixelated";
+    canvas.style.position = "absolute";
+
+    if (overlay) {
+      overlay.width = canvasWidth;
+      overlay.height = canvasHeight;
+      overlay.style.transform = style;
+      overlay.style.transformOrigin = "0 0";
+      overlay.style.imageRendering = "pixelated";
+    }
+
+    $("zoom-info").textContent = `Zoom: ${cvZoom.toFixed(1)}x`;
+    drawOverlay();
+  }
+
+  function centerAdminCanvas() {
+    const vp = $("canvas-viewport");
+    if (!vp) return;
+    const rect = vp.getBoundingClientRect();
+    cvOffset = {
+      x: (rect.width - canvasWidth * cvZoom) / 2,
+      y: (rect.height - canvasHeight * cvZoom) / 2,
+    };
+    applyCanvasTransform();
+  }
+
+  function screenToPixel(clientX, clientY) {
+    const vp = $("canvas-viewport");
+    if (!vp) return null;
+    const rect = vp.getBoundingClientRect();
+    const px = Math.floor((clientX - rect.left - cvOffset.x) / cvZoom);
+    const py = Math.floor((clientY - rect.top - cvOffset.y) / cvZoom);
+    if (px < 0 || px >= canvasWidth || py < 0 || py >= canvasHeight) return null;
+    return { x: px, y: py };
+  }
+
+  // --- Mouse events ---
+
+  function onCanvasWheel(e) {
+    e.preventDefault();
+    const vp = $("canvas-viewport");
+    const rect = vp.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+
+    const oldZoom = cvZoom;
+    const newZoom = Math.max(1, Math.min(40, oldZoom * (e.deltaY < 0 ? 1.15 : 0.87)));
+
+    cvOffset.x = mouseX - (mouseX - cvOffset.x) * (newZoom / oldZoom);
+    cvOffset.y = mouseY - (mouseY - cvOffset.y) * (newZoom / oldZoom);
+    cvZoom = newZoom;
+
+    applyCanvasTransform();
+  }
+
+  function onCanvasMouseDown(e) {
+    if (e.button !== 0) return;
+
+    if (currentTool === "reset-area") {
+      const px = screenToPixel(e.clientX, e.clientY);
+      if (px) {
+        areaSelecting = true;
+        areaStart = px;
+        areaEnd = px;
+        updateSelectionRect();
+        return;
+      }
+    }
+
+    cvDragging = false;
+    cvDragStart = { x: e.clientX, y: e.clientY };
+    cvLastOffset = { ...cvOffset };
+  }
+
+  function onCanvasMouseMove(e) {
+    const px = screenToPixel(e.clientX, e.clientY);
+    const coordsEl = $("canvas-coords");
+    if (px) {
+      coordsEl.style.display = "block";
+      coordsEl.textContent = `(${px.x}, ${px.y})`;
+    } else {
+      coordsEl.style.display = "none";
+    }
+
+    if (areaSelecting && currentTool === "reset-area") {
+      if (px) areaEnd = px;
+      updateSelectionRect();
+      return;
+    }
+
+    if (e.buttons === 1 && !areaSelecting) {
+      const dx = e.clientX - cvDragStart.x;
+      const dy = e.clientY - cvDragStart.y;
+      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) cvDragging = true;
+      if (cvDragging) {
+        cvOffset = { x: cvLastOffset.x + dx, y: cvLastOffset.y + dy };
+        applyCanvasTransform();
+        $("canvas-viewport").classList.add("dragging");
+      }
+    }
+  }
+
+  function onCanvasMouseUp(e) {
+    $("canvas-viewport").classList.remove("dragging");
+
+    if (areaSelecting && currentTool === "reset-area") {
+      areaSelecting = false;
+      if (areaStart && areaEnd) {
+        confirmAreaReset();
+      }
+      return;
+    }
+
+    if (!cvDragging && e.button === 0) {
+      const px = screenToPixel(e.clientX, e.clientY);
+      if (px && currentTool === "inspect") {
+        selectPixel(px.x, px.y);
+      } else {
+        deselectPixel();
+      }
+    }
+    cvDragging = false;
+  }
+
+  function onCanvasMouseLeave() {
+    $("canvas-coords").style.display = "none";
+    if (areaSelecting) {
+      areaSelecting = false;
+      hideSelectionRect();
+    }
+  }
+
+  // --- Tool switcher ---
+
+  function setTool(tool) {
+    currentTool = tool;
+    document.querySelectorAll(".tool-btn").forEach((btn) => {
+      btn.classList.toggle("active", btn.dataset.tool === tool);
+    });
+    if (tool !== "reset-area") {
+      areaStart = null;
+      areaEnd = null;
+      hideSelectionRect();
+    }
+    if (tool === "reset-area") {
+      deselectPixel();
+    }
+  }
+
+  // --- Overlay (selected pixel highlight) ---
+
+  function drawOverlay() {
+    const overlay = $("admin-overlay");
+    if (!overlay) return;
+    const ctx = overlay.getContext("2d");
+    overlay.width = canvasWidth;
+    overlay.height = canvasHeight;
+    ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+
+    if (selectedPx) {
+      const { x, y } = selectedPx;
+      const lw = Math.max(2 / cvZoom, 0.15);
+      ctx.strokeStyle = "#dc2626";
+      ctx.lineWidth = lw;
+      ctx.strokeRect(x - lw, y - lw, 1 + lw * 2, 1 + lw * 2);
+      ctx.strokeStyle = "#ffffff";
+      ctx.lineWidth = lw * 0.6;
+      ctx.strokeRect(x, y, 1, 1);
+    }
+  }
+
+  // --- Area selection rectangle ---
+
+  function updateSelectionRect() {
+    if (!areaStart || !areaEnd) return;
+    const rect = $("selection-rect");
+
+    const minX = Math.min(areaStart.x, areaEnd.x);
+    const minY = Math.min(areaStart.y, areaEnd.y);
+    const maxX = Math.max(areaStart.x, areaEnd.x);
+    const maxY = Math.max(areaStart.y, areaEnd.y);
+
+    const left = cvOffset.x + minX * cvZoom;
+    const top = cvOffset.y + minY * cvZoom;
+    const w = (maxX - minX + 1) * cvZoom;
+    const h = (maxY - minY + 1) * cvZoom;
+    const area = (maxX - minX + 1) * (maxY - minY + 1);
+
+    rect.style.display = "flex";
+    rect.style.left = left + "px";
+    rect.style.top = top + "px";
+    rect.style.width = w + "px";
+    rect.style.height = h + "px";
+    rect.textContent = `${maxX - minX + 1} x ${maxY - minY + 1} (${area}px)`;
+  }
+
+  function hideSelectionRect() {
+    $("selection-rect").style.display = "none";
+  }
+
+  // --- Pixel info panel ---
+
+  async function selectPixel(x, y) {
+    selectedPx = { x, y };
+    drawOverlay();
+
+    const panel = $("pixel-panel");
+    panel.style.display = "block";
+    panel.innerHTML = '<div style="text-align:center;color:#a0aec0;padding:8px">Loading...</div>';
+
+    try {
+      const res = await fetch(`/api/canvas/pixel/${x}/${y}`, { headers: headers() });
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      const pixel = data.pixel;
+      const wallet = data.wallet;
+
+      let history = [];
+      try {
+        const hRes = await fetch(`/api/canvas/pixel/${x}/${y}/history?limit=10`, { headers: headers() });
+        if (hRes.ok) { history = (await hRes.json()).history || []; }
+      } catch {}
+
+      const colorHex = colorPalette[pixel.color] || "#FFFFFF";
+      const updatedDate = pixel.updatedAt ? new Date(pixel.updatedAt).toLocaleString() : "Never";
+
+      let html = `
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <h4>Pixel (${x}, ${y})</h4>
+          <button class="btn btn-sm" onclick="deselectPixel()" style="padding:2px 8px;font-size:11px">X</button>
+        </div>
+        <div class="field">
+          <span class="color-swatch" style="background:${colorHex}"></span>
+          <span class="field-value">${colorHex}</span>
+          <span style="color:#a0aec0;margin-left:4px">(${pixel.color})</span>
+        </div>
+        <div class="field">
+          <span class="field-label">Overwrites: </span>
+          <span class="field-value">${pixel.overwriteCount}</span>
+        </div>
+        <div class="field">
+          <span class="field-label">Last paid: </span>
+          <span class="field-value" style="color:#d97706">${Number(pixel.pricePaid).toFixed(4)} IOTA</span>
+        </div>
+        <div class="field">
+          <span class="field-label">Next price: </span>
+          <span class="field-value" style="color:#16a34a">${Number(data.nextPrice).toFixed(4)} IOTA</span>
+        </div>
+        <div class="field">
+          <span class="field-label">Updated: </span>
+          <span class="field-value">${updatedDate}</span>
+        </div>
+      `;
+
+      if (wallet) {
+        html += `
+          <div class="divider"></div>
+          <div class="field">
+            <span class="field-label">Owner: </span>
+            <span class="field-value">${esc(wallet.displayName || "Unknown")}</span>
+          </div>
+          <div class="field">
+            <span class="field-label">Address: </span>
+            <span class="field-value" style="font-size:10px;word-break:break-all">${esc(wallet.address)}</span>
+          </div>
+          <div class="field">
+            <span class="field-label">Status: </span>
+            <span style="color:${wallet.isBanned ? '#dc2626' : '#16a34a'};font-weight:600">
+              ${wallet.isBanned ? 'BANNED' : 'Active'}
+            </span>
+          </div>
+        `;
+      } else if (pixel.walletId === "admin") {
+        html += `
+          <div class="divider"></div>
+          <div class="field">
+            <span class="field-label">Owner: </span>
+            <span class="field-value" style="color:#3b82f6">Admin (reset)</span>
+          </div>
+        `;
+      } else if (pixel.walletId) {
+        html += `
+          <div class="divider"></div>
+          <div class="field">
+            <span class="field-label">Wallet ID: </span>
+            <span class="field-value" style="font-size:10px;word-break:break-all">${esc(pixel.walletId)}</span>
+          </div>
+        `;
+      }
+
+      html += `<div class="action-row">`;
+      html += `<button class="btn btn-danger btn-sm" onclick="resetPixel(${x}, ${y})">Reset Pixel</button>`;
+      if (wallet && !wallet.isBanned) {
+        html += `<button class="btn btn-warning btn-sm" onclick="banFromPixel('${wallet.id}')">Ban Owner</button>`;
+      }
+      if (wallet && wallet.isBanned) {
+        html += `<button class="btn btn-success btn-sm" onclick="unbanFromPixel('${wallet.id}')">Unban Owner</button>`;
+      }
+      html += `</div>`;
+
+      if (history.length > 0) {
+        html += `<div class="divider"></div>`;
+        html += `<div class="field-label" style="margin-bottom:4px">History (${history.length})</div>`;
+        for (const h of history) {
+          const hColor = colorPalette[h.color] || "#FFFFFF";
+          const hDate = new Date(h.placed_at).toLocaleString();
+          const hName = h.display_name || (h.address ? h.address.slice(0, 12) + "..." : "Unknown");
+          html += `
+            <div class="history-item">
+              <span class="color-swatch" style="background:${hColor};width:10px;height:10px"></span>
+              <span style="font-weight:600">${esc(hName)}</span>
+              <span style="color:#d97706;margin-left:4px">${Number(h.price_paid).toFixed(4)}</span>
+              <div style="color:#a0aec0;font-size:10px">${hDate}</div>
+            </div>
+          `;
+        }
+      }
+
+      panel.innerHTML = html;
+    } catch {
+      panel.innerHTML = '<div style="color:#dc2626;padding:8px">Failed to load pixel info</div>';
+    }
+  }
+
+  function deselectPixel() {
+    selectedPx = null;
+    $("pixel-panel").style.display = "none";
+    drawOverlay();
+  }
+
+  // --- Moderation actions ---
+
+  async function resetPixel(x, y) {
+    const ok = await showConfirm("Reset Pixel", `Reset pixel (${x}, ${y}) to white?`, "Reset", "btn-danger");
+    if (!ok) return;
+    try {
+      const res = await fetch("/api/admin/canvas/reset-pixel", {
+        method: "POST",
+        headers: headers(),
+        body: JSON.stringify({ x, y }),
+      });
+      if (res.ok && colorData) {
+        colorData[y * canvasWidth + x] = 0;
+        drawAdminCanvas();
+        selectPixel(x, y);
+      }
+    } catch {}
+  }
+
+  async function confirmAreaReset() {
+    if (!areaStart || !areaEnd) return;
+
+    const x1 = Math.min(areaStart.x, areaEnd.x);
+    const y1 = Math.min(areaStart.y, areaEnd.y);
+    const x2 = Math.max(areaStart.x, areaEnd.x);
+    const y2 = Math.max(areaStart.y, areaEnd.y);
+    const area = (x2 - x1 + 1) * (y2 - y1 + 1);
+
+    if (area > 2500) {
+      await showAlert("Area Too Large", `Selected area is ${area} pixels. Maximum is 2500 pixels (50x50).`);
+      hideSelectionRect();
+      areaStart = null;
+      areaEnd = null;
+      return;
+    }
+
+    const ok = await showConfirm("Area Reset", `Reset ${area} pixels in (${x1},${y1}) to (${x2},${y2}) to white?`, "Reset Area", "btn-danger");
+    if (!ok) {
+      hideSelectionRect();
+      areaStart = null;
+      areaEnd = null;
+      return;
+    }
+
+    try {
+      const res = await fetch("/api/admin/canvas/reset-area", {
+        method: "POST",
+        headers: headers(),
+        body: JSON.stringify({ x1, y1, x2, y2 }),
+      });
+      if (res.ok && colorData) {
+        const data = await res.json();
+        for (let y = y1; y <= y2; y++) {
+          for (let x = x1; x <= x2; x++) {
+            colorData[y * canvasWidth + x] = 0;
+          }
+        }
+        drawAdminCanvas();
+        await showAlert("Area Reset Complete", `${data.resetCount} pixels have been reset.`);
+      }
+    } catch {}
+
+    hideSelectionRect();
+    areaStart = null;
+    areaEnd = null;
+  }
+
+  async function banFromPixel(walletId) {
+    const ok = await showConfirm("Ban Wallet", "Ban this wallet? The owner will no longer be able to place pixels.", "Ban", "btn-danger");
+    if (!ok) return;
+    try {
+      await fetch(`/api/admin/wallets/${walletId}/ban`, {
+        method: "PUT",
+        headers: headers(),
+        body: JSON.stringify({ banned: true }),
+      });
+      if (selectedPx) selectPixel(selectedPx.x, selectedPx.y);
+      fetchWallets();
+    } catch {}
+  }
+
+  async function unbanFromPixel(walletId) {
+    try {
+      await fetch(`/api/admin/wallets/${walletId}/ban`, {
+        method: "PUT",
+        headers: headers(),
+        body: JSON.stringify({ banned: false }),
+      });
+      if (selectedPx) selectPixel(selectedPx.x, selectedPx.y);
+      fetchWallets();
+    } catch {}
+  }
+
+  // =============================================
+  // Season Management
+  // =============================================
+
+  let currentSeason = null;
+
+  async function fetchSeason() {
+    try {
+      const res = await fetch("/api/admin/season/current", { headers: headers() });
+      if (!res.ok) return;
+      const data = await res.json();
+      currentSeason = data.season;
+      renderSeasonUI();
+    } catch {}
+  }
+
+  function renderSeasonUI() {
+    const badge = $("season-badge");
+    const info = $("season-info");
+    const actions = $("season-actions");
+
+    if (currentSeason) {
+      badge.textContent = currentSeason.name;
+      badge.style.background = "rgba(22,163,74,0.1)";
+      badge.style.color = "#16a34a";
+
+      const started = new Date(currentSeason.startDate).toLocaleString();
+      info.innerHTML = `
+        <div style="font-size:12px;color:#4a5568">
+          <span style="color:#a0aec0">Started:</span> ${started}<br/>
+          <span style="color:#a0aec0">Canvas:</span> ${currentSeason.canvasWidth}x${currentSeason.canvasHeight}
+        </div>
+      `;
+      actions.innerHTML = `
+        <button class="btn btn-danger" onclick="confirmEndSeason(false)">End Season</button>
+        <button class="btn btn-danger" onclick="confirmEndSeason(true)">End Season + Reset Canvas</button>
+      `;
+    } else {
+      badge.textContent = "Off-Season";
+      badge.style.background = "rgba(160,174,192,0.15)";
+      badge.style.color = "#a0aec0";
+      info.innerHTML = '<div style="font-size:12px;color:#a0aec0">No active season. Start one to track per-season leaderboards.</div>';
+      actions.innerHTML = `
+        <button class="btn btn-primary" onclick="showStartForm()">Start New Season</button>
+        <button class="btn" onclick="fetchSeasonHistory()">View History</button>
+      `;
+    }
+  }
+
+  function showStartForm() {
+    $("season-start-form").style.display = "block";
+    $("season-name-input").focus();
+  }
+
+  function hideStartForm() {
+    $("season-start-form").style.display = "none";
+    $("season-name-input").value = "";
+  }
+
+  async function confirmStartSeason() {
+    const name = $("season-name-input").value.trim();
+    if (!name) { await showAlert("Error", "Please enter a season name."); return; }
+
+    const ok = await showConfirm(
+      "Start New Season",
+      `Start "${name}"? Per-season leaderboards will begin tracking from now.`,
+      "Start Season",
+      "btn-primary"
+    );
+    if (!ok) return;
+
+    try {
+      const res = await fetch("/api/admin/season/start", {
+        method: "POST",
+        headers: headers(),
+        body: JSON.stringify({ name }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        hideStartForm();
+        await showAlert("Season Started", `"${data.season.name}" is now active!`);
+        fetchSeason();
+      } else {
+        await showAlert("Error", data.error || "Failed to start season");
+      }
+    } catch {
+      await showAlert("Error", "Connection failed");
+    }
+  }
+
+  async function confirmEndSeason(resetCanvas) {
+    const name = currentSeason ? currentSeason.name : "Season";
+    const msg = resetCanvas
+      ? `End "${name}" and RESET THE ENTIRE CANVAS to white?\n\n1. Canvas will be paused\n2. A backup will be created\n3. A PNG snapshot will be saved\n4. The season will end\n5. All pixels will be reset to white\n6. Canvas will resume`
+      : `End "${name}"? A PNG snapshot will be saved. The canvas will NOT be reset.`;
+
+    const ok = await showConfirm(
+      "End Season",
+      msg,
+      resetCanvas ? "End + Reset Canvas" : "End Season",
+      "btn-danger"
+    );
+    if (!ok) return;
+
+    if (resetCanvas) {
+      const doubleOk = await showConfirm(
+        "Are you SURE?",
+        "This will delete ALL pixels on the canvas. This cannot be undone!",
+        "Yes, Reset Canvas",
+        "btn-danger"
+      );
+      if (!doubleOk) return;
+    }
+
+    try {
+      const res = await fetch("/api/admin/season/end", {
+        method: "POST",
+        headers: headers(),
+        body: JSON.stringify({ resetCanvas }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        let msg = `Season ended! Snapshot saved.`;
+        if (data.canvasReset) msg += " Canvas has been reset to white.";
+        await showAlert("Season Ended", msg);
+        fetchSeason();
+        if (data.canvasReset) refreshCanvas();
+        fetchStats();
+      } else {
+        await showAlert("Error", data.error || "Failed to end season");
+      }
+    } catch {
+      await showAlert("Error", "Connection failed");
+    }
+  }
+
+  async function fetchSeasonHistory() {
+    try {
+      const res = await fetch("/api/admin/season/history", { headers: headers() });
+      if (!res.ok) return;
+      const data = await res.json();
+      const container = $("season-history");
+      const list = $("season-history-list");
+      container.style.display = "block";
+
+      if (!data.seasons || data.seasons.length === 0) {
+        list.innerHTML = '<div style="color:#a0aec0;font-size:12px">No past seasons yet.</div>';
+        return;
+      }
+
+      list.innerHTML = data.seasons.map(s => {
+        const start = new Date(s.startDate).toLocaleDateString();
+        const end = s.endDate ? new Date(s.endDate).toLocaleDateString() : "Active";
+        return `
+          <div style="display:flex;align-items:center;gap:8px;padding:8px;background:rgba(0,0,0,0.02);border-radius:6px;margin-bottom:6px;font-size:12px">
+            <span style="font-weight:600;min-width:80px">${esc(s.name)}</span>
+            <span style="color:#a0aec0">${start} — ${end}</span>
+            <span style="color:#4a5568">${s.canvasWidth}x${s.canvasHeight}</span>
+            <div style="margin-left:auto;display:flex;gap:4px">
+              ${s.snapshotUrl ? `<a href="/api/admin/season/${s.id}/snapshot" target="_blank" class="btn btn-sm" style="font-size:10px;text-decoration:none">Snapshot</a>` : ""}
+              <button class="btn btn-sm" onclick="viewSeasonLeaderboard(${s.id}, '${esc(s.name).replace(/'/g, "\\'")}')" style="font-size:10px">Leaderboard</button>
+            </div>
+          </div>
+        `;
+      }).join("");
+    } catch {}
+  }
+
+  async function viewSeasonLeaderboard(seasonId, seasonName) {
+    try {
+      const res = await fetch(`/api/admin/season/${seasonId}/leaderboard?limit=10`, { headers: headers() });
+      if (!res.ok) return;
+      const data = await res.json();
+
+      if (!data.leaderboard || data.leaderboard.length === 0) {
+        await showAlert(seasonName, "No leaderboard data for this season.");
+        return;
+      }
+
+      const rows = data.leaderboard.map(e =>
+        `${e.rank}. ${e.displayName} — ${e.score} ${data.type === "spent" ? "IOTA" : "px"}`
+      ).join("\n");
+
+      await showAlert(`${seasonName} — Top 10`, rows);
+    } catch {}
+  }
+</script>
+
+</body>
+</html>

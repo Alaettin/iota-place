@@ -1,16 +1,32 @@
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState } from "react";
 import { io, Socket } from "socket.io-client";
+
+export interface SeasonInfo {
+  id: number;
+  name: string;
+  startDate: string;
+  endDate: string | null;
+}
 
 interface UseSocketOptions {
   onPixelUpdate: (x: number, y: number, color: number) => void;
+  onPauseChange?: (paused: boolean) => void;
+  onSeasonChange?: (season: SeasonInfo | null) => void;
+  onCanvasReset?: () => void;
 }
 
-export function useSocket({ onPixelUpdate }: UseSocketOptions) {
+export function useSocket({ onPixelUpdate, onPauseChange, onSeasonChange, onCanvasReset }: UseSocketOptions) {
   const socketRef = useRef<Socket | null>(null);
   const [userCount, setUserCount] = useState(0);
   const [connected, setConnected] = useState(false);
   const onPixelUpdateRef = useRef(onPixelUpdate);
   onPixelUpdateRef.current = onPixelUpdate;
+  const onPauseChangeRef = useRef(onPauseChange);
+  onPauseChangeRef.current = onPauseChange;
+  const onSeasonChangeRef = useRef(onSeasonChange);
+  onSeasonChangeRef.current = onSeasonChange;
+  const onCanvasResetRef = useRef(onCanvasReset);
+  onCanvasResetRef.current = onCanvasReset;
 
   useEffect(() => {
     const socket = io(window.location.origin, {
@@ -22,7 +38,8 @@ export function useSocket({ onPixelUpdate }: UseSocketOptions) {
     socket.on("disconnect", () => setConnected(false));
 
     socket.on("pixel:update", (data: ArrayBuffer) => {
-      const view = new DataView(data instanceof ArrayBuffer ? data : (data as Buffer));
+      const buf = data instanceof ArrayBuffer ? data : (data as { buffer: ArrayBuffer }).buffer;
+      const view = new DataView(buf);
       const x = view.getUint16(0);
       const y = view.getUint16(2);
       const color = view.getUint8(4);
@@ -31,6 +48,18 @@ export function useSocket({ onPixelUpdate }: UseSocketOptions) {
 
     socket.on("user:count", ({ count }: { count: number }) => {
       setUserCount(count);
+    });
+
+    socket.on("canvas:pause", ({ paused }: { paused: boolean }) => {
+      onPauseChangeRef.current?.(paused);
+    });
+
+    socket.on("season:change", ({ season }: { season: SeasonInfo | null }) => {
+      onSeasonChangeRef.current?.(season);
+    });
+
+    socket.on("canvas:reset", () => {
+      onCanvasResetRef.current?.();
     });
 
     return () => {

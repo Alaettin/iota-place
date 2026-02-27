@@ -1,65 +1,98 @@
-import "dotenv/config";
-import express from "express";
-import http from "http";
+import dotenv from "dotenv";
 import path from "path";
-import cors from "cors";
-import { mountRoutes as mountCanvasRoutes } from "./routes/canvas.routes";
-import { mountRoutes as mountWalletRoutes } from "./routes/wallet.routes";
-import { mountRoutes as mountLeaderboardRoutes } from "./routes/leaderboard.routes";
-import { mountRoutes as mountAdminRoutes } from "./routes/admin.routes";
-import { initSocketServer } from "./ws/socket";
-import { initPool } from "./db/pool";
-import { initRedis } from "./db/redis";
-import { runMigrations } from "./db/migrations";
-import { canvasService } from "./services/canvas.service";
-import { startFlushService } from "./services/flush.service";
 
-const app = express();
-const server = http.createServer(app);
-const PORT = parseInt(process.env.PORT || "3001", 10);
+// Load .env BEFORE any other modules (dynamic imports below)
+dotenv.config({ path: path.resolve(__dirname, "../../.env") });
 
-app.use(cors({ origin: process.env.CLIENT_URL || "http://localhost:5173" }));
-app.use(express.json());
+async function bootstrap() {
+  const [
+    { default: express },
+    http,
+    { default: cors },
+    { mountRoutes: mountCanvasRoutes },
+    { mountRoutes: mountWalletRoutes },
+    { mountRoutes: mountLeaderboardRoutes },
+    { initSocketServer },
+    { initPool },
+    { initRedis },
+    { runMigrations },
+    { canvasService },
+    { startFlushService },
+    { startAdminServer },
+    { startBackupService },
+    { paymentService },
+    { seasonService },
+  ] = await Promise.all([
+    import("express"),
+    import("http"),
+    import("cors"),
+    import("./routes/canvas.routes"),
+    import("./routes/wallet.routes"),
+    import("./routes/leaderboard.routes"),
+    import("./ws/socket"),
+    import("./db/pool"),
+    import("./db/redis"),
+    import("./db/migrations"),
+    import("./services/canvas.service"),
+    import("./services/flush.service"),
+    import("./admin-server"),
+    import("./services/backup.service"),
+    import("./services/payment"),
+    import("./services/season.service"),
+  ]);
 
-// Health check
-app.get("/api/health", (_req, res) => {
-  res.json({ ok: true, timestamp: new Date().toISOString() });
-});
+  const app = express();
+  const server = http.createServer(app);
+  const PORT = parseInt(process.env.PORT || "3001", 10);
 
-// WebSocket
-initSocketServer(server);
+  app.use(cors({ origin: process.env.CLIENT_URL || "http://localhost:5173" }));
+  app.use(express.json());
 
-// Mount routes
-mountCanvasRoutes(app);
-mountWalletRoutes(app);
-mountLeaderboardRoutes(app);
-mountAdminRoutes(app);
-
-// Serve client in production
-if (process.env.NODE_ENV === "production") {
-  app.use(express.static(path.join(__dirname, "public")));
-  app.get("*", (_req, res) => {
-    res.sendFile(path.join(__dirname, "public", "index.html"));
+  // Health check
+  app.get("/api/health", (_req, res) => {
+    res.json({ ok: true, timestamp: new Date().toISOString() });
   });
-}
 
-async function start() {
+  // WebSocket
+  initSocketServer(server);
+
+  // Mount routes (admin routes are on separate port)
+  mountCanvasRoutes(app);
+  mountWalletRoutes(app);
+  mountLeaderboardRoutes(app);
+
+  // Serve client in production
+  if (process.env.NODE_ENV === "production") {
+    app.use(express.static(path.join(__dirname, "public")));
+    app.get("*", (_req, res) => {
+      res.sendFile(path.join(__dirname, "public", "index.html"));
+    });
+  }
+
   // Initialize databases (optional - falls back to in-memory if unavailable)
   const pool = await initPool();
   await initRedis();
 
   if (pool) {
     await runMigrations(pool);
+    await paymentService.loadFromDb();
     await canvasService.loadFromDb();
+    await seasonService.loadFromDb();
     startFlushService();
   }
+
+  // Start admin server on separate port (localhost only)
+  startAdminServer();
+
+  // Start backup service
+  startBackupService();
 
   server.listen(PORT, () => {
     console.log(`IOTA Place server running on http://localhost:${PORT}`);
   });
 }
 
-start().catch((err) => {
+bootstrap().catch((err) => {
   console.error("Failed to start:", err);
   process.exit(1);
 });

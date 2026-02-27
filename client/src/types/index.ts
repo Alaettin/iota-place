@@ -14,6 +14,8 @@ export interface CanvasConfig {
   basePrice: number;
   priceFactor: number;
   colorCount: number;
+  paymentMode: "mock" | "iota";
+  collectionAddress?: string;
 }
 
 export const COLOR_PALETTE = [

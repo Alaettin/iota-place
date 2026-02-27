@@ -13,7 +13,18 @@ export interface WalletInfo {
   balance: number;
 }
 
+export interface WalletRecord {
+  id: string;
+  address: string;
+  displayName: string;
+  balance: number;
+  totalSpent: number;
+  pixelCount: number;
+  isBanned: boolean;
+}
+
 export interface PaymentService {
+  loadFromDb(): Promise<void>;
   connectWallet(address: string, displayName?: string): Promise<WalletInfo>;
   getBalance(walletId: string): Promise<number>;
   getWallet(walletId: string): Promise<WalletInfo | null>;
@@ -21,6 +32,9 @@ export interface PaymentService {
     x: number;
     y: number;
     color: number;
+    txDigest?: string;
   }): Promise<PaymentResult>;
   addFunds(walletId: string, amount: number): Promise<WalletInfo>;
+  getAllWallets(): WalletRecord[];
+  isWalletBanned(walletId: string): boolean;
 }

@@ -1,10 +1,15 @@
 import { Server as HttpServer } from "http";
 import { Server as SocketServer } from "socket.io";
 
-let io: SocketServer;
+// Use globalThis to avoid CJS/ESM dual-module issue
+const G = globalThis as any;
+
+function io(): SocketServer | null {
+  return G.__iotaSocketIO || null;
+}
 
 export function initSocketServer(httpServer: HttpServer): SocketServer {
-  io = new SocketServer(httpServer, {
+  const server = new SocketServer(httpServer, {
     cors: {
       origin: process.env.CLIENT_URL || "http://localhost:5173",
       methods: ["GET", "POST"],
@@ -12,35 +17,56 @@ export function initSocketServer(httpServer: HttpServer): SocketServer {
     transports: ["websocket", "polling"],
   });
 
-  io.on("connection", () => {
+  server.on("connection", () => {
     broadcastUserCount();
   });
 
-  io.on("connection", (socket) => {
+  server.on("connection", (socket) => {
     socket.on("disconnect", () => {
       broadcastUserCount();
     });
   });
 
-  return io;
+  G.__iotaSocketIO = server;
+  return server;
 }
 
 export function broadcastPixelUpdate(x: number, y: number, color: number): void {
-  if (!io) return;
+  const s = io();
+  if (!s) return;
   // 5 bytes: 2B x + 2B y + 1B color
   const buf = Buffer.alloc(5);
   buf.writeUInt16BE(x, 0);
   buf.writeUInt16BE(y, 2);
   buf.writeUInt8(color, 4);
-  io.emit("pixel:update", buf);
+  s.emit("pixel:update", buf);
 }
 
 export function broadcastUserCount(): void {
-  if (!io) return;
-  const count = io.engine.clientsCount;
-  io.emit("user:count", { count });
+  const s = io();
+  if (!s) return;
+  const count = s.engine.clientsCount;
+  s.emit("user:count", { count });
 }
 
-export function getIO(): SocketServer {
-  return io;
+export function broadcastPause(paused: boolean): void {
+  const s = io();
+  if (!s) return;
+  s.emit("canvas:pause", { paused });
+}
+
+export function broadcastSeasonChange(season: { id: number; name: string; startDate: string; endDate: string | null } | null): void {
+  const s = io();
+  if (!s) return;
+  s.emit("season:change", { season });
+}
+
+export function broadcastCanvasReset(): void {
+  const s = io();
+  if (!s) return;
+  s.emit("canvas:reset");
+}
+
+export function getIO(): SocketServer | null {
+  return io();
 }

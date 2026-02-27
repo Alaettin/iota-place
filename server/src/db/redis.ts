@@ -1,14 +1,20 @@
 import Redis from "ioredis";
 
-let redis: Redis | null = null;
+// Use globalThis to avoid CJS/ESM dual-module issue where dynamic and
+// static imports create separate module instances with separate variables.
+const G = globalThis as any;
+
+function r(): Redis | null {
+  return G.__iotaRedis || null;
+}
 
 export function getRedis(): Redis | null {
-  return redis;
+  return r();
 }
 
 export async function initRedis(): Promise<Redis | null> {
   try {
-    redis = new Redis({
+    const redis = new Redis({
       host: process.env.REDIS_HOST || "localhost",
       port: parseInt(process.env.REDIS_PORT || "6379", 10),
       maxRetriesPerRequest: 1,
@@ -26,13 +32,11 @@ export async function initRedis(): Promise<Redis | null> {
 
     // Reset retry strategy for normal operation
     redis.options.retryStrategy = (times: number) => Math.min(times * 200, 5000);
+    G.__iotaRedis = redis;
     return redis;
   } catch (err) {
     console.warn("Redis not available, running in-memory only:", (err as Error).message);
-    if (redis) {
-      redis.disconnect();
-      redis = null;
-    }
+    G.__iotaRedis = null;
     return null;
   }
 }
@@ -45,6 +49,7 @@ export async function setPixelInRedis(
   x: number, y: number, color: number,
   walletId: string, pricePaid: number, overwriteCount: number, width: number
 ): Promise<void> {
+  const redis = r();
   if (!redis) return;
   const offset = y * width + x;
   const pipeline = redis.pipeline();
@@ -61,27 +66,32 @@ export async function setPixelInRedis(
 }
 
 export async function getCanvasFromRedis(): Promise<Buffer | null> {
+  const redis = r();
   if (!redis) return null;
   return redis.getBuffer(CANVAS_KEY);
 }
 
 export async function loadCanvasToRedis(buffer: Uint8Array): Promise<void> {
+  const redis = r();
   if (!redis) return;
   await redis.set(CANVAS_KEY, Buffer.from(buffer));
 }
 
 export async function getDirtyPixels(): Promise<string[]> {
+  const redis = r();
   if (!redis) return [];
   return redis.smembers(DIRTY_SET);
 }
 
 export async function getPixelMeta(coord: string): Promise<Record<string, string> | null> {
+  const redis = r();
   if (!redis) return null;
   const meta = await redis.hgetall(`canvas:pixel:${coord}`);
   return Object.keys(meta).length > 0 ? meta : null;
 }
 
 export async function clearDirtyPixels(coords: string[]): Promise<void> {
+  const redis = r();
   if (!redis || coords.length === 0) return;
   await redis.srem(DIRTY_SET, ...coords);
 }

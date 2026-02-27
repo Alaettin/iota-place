@@ -1,55 +1,107 @@
 import { Router } from "express";
 import { paymentService } from "../services/payment";
-import { MockPaymentService } from "../services/payment/mock-payment.service";
 import { canvasService } from "../services/canvas.service";
+import { seasonService } from "../services/season.service";
+import { getPool } from "../db/pool";
 
 export function mountRoutes(router: Router): void {
-  // Leaderboard
+  // All-time leaderboard
   router.get("/api/leaderboard", async (_req, res) => {
     try {
-      // In mock mode, get data from MockPaymentService
-      if (paymentService instanceof MockPaymentService) {
-        const wallets = paymentService.getAllWallets();
-        const type = (_req.query.type as string) === "spent" ? "spent" : "pixels";
-        const limit = Math.min(parseInt(_req.query.limit as string) || 20, 100);
+      const wallets = paymentService.getAllWallets();
+      const type = (_req.query.type as string) === "spent" ? "spent" : "pixels";
+      const limit = Math.min(parseInt(_req.query.limit as string) || 20, 100);
 
-        const sorted = [...wallets]
-          .sort((a, b) => (type === "spent" ? b.totalSpent - a.totalSpent : b.pixelCount - a.pixelCount))
-          .slice(0, limit)
-          .filter((w) => (type === "spent" ? w.totalSpent > 0 : w.pixelCount > 0));
+      const sorted = [...wallets]
+        .sort((a, b) => (type === "spent" ? b.totalSpent - a.totalSpent : b.pixelCount - a.pixelCount))
+        .slice(0, limit)
+        .filter((w) => (type === "spent" ? w.totalSpent > 0 : w.pixelCount > 0));
 
-        const leaderboard = sorted.map((w, i) => ({
-          rank: i + 1,
-          walletId: w.id,
-          displayName: w.displayName,
-          address: w.address,
-          score: type === "spent" ? Math.round(w.totalSpent * 10000) / 10000 : w.pixelCount,
-        }));
+      const leaderboard = sorted.map((w, i) => ({
+        rank: i + 1,
+        walletId: w.id,
+        displayName: w.displayName,
+        address: w.address,
+        score: type === "spent" ? Math.round(w.totalSpent * 10000) / 10000 : w.pixelCount,
+      }));
 
-        return res.json({ ok: true, type, leaderboard });
-      }
-
-      res.json({ ok: true, type: "pixels", leaderboard: [] });
+      res.json({ ok: true, type, leaderboard });
     } catch {
       res.status(500).json({ error: "LEADERBOARD_FETCH_FAILED" });
     }
   });
 
-  // Global stats
+  // Per-season leaderboard
+  router.get("/api/leaderboard/season/:seasonId", async (req, res) => {
+    try {
+      const pool = getPool();
+      if (!pool) return res.json({ ok: true, type: "pixels", leaderboard: [] });
+
+      const seasonId = parseInt(req.params.seasonId, 10);
+      if (isNaN(seasonId)) return res.status(400).json({ error: "INVALID_SEASON_ID" });
+
+      const type = (req.query.type as string) === "spent" ? "spent" : "pixels";
+      const limit = Math.min(parseInt(req.query.limit as string) || 20, 100);
+      const orderCol = type === "spent" ? "wss.total_spent" : "wss.pixel_count";
+
+      const { rows } = await pool.query(`
+        SELECT wss.wallet_id, wss.total_spent, wss.pixel_count,
+               w.display_name, w.address
+        FROM wallet_season_stats wss
+        LEFT JOIN wallets w ON w.id = wss.wallet_id
+        WHERE wss.season_id = $1
+        ORDER BY ${orderCol} DESC
+        LIMIT $2
+      `, [seasonId, limit]);
+
+      const leaderboard = rows.map((r: any, i: number) => ({
+        rank: i + 1,
+        walletId: r.wallet_id,
+        displayName: r.display_name || "Unknown",
+        address: r.address || "",
+        score: type === "spent"
+          ? Math.round(parseFloat(r.total_spent) * 10000) / 10000
+          : r.pixel_count,
+      }));
+
+      res.json({ ok: true, type, leaderboard });
+    } catch {
+      res.status(500).json({ error: "SEASON_LEADERBOARD_FETCH_FAILED" });
+    }
+  });
+
+  // Global stats (with optional season stats)
   router.get("/api/stats", async (_req, res) => {
     try {
-      let totalWallets = 0;
-      let totalSpent = 0;
-      let totalPlacements = 0;
-
-      if (paymentService instanceof MockPaymentService) {
-        const wallets = paymentService.getAllWallets();
-        totalWallets = wallets.length;
-        totalSpent = wallets.reduce((sum, w) => sum + w.totalSpent, 0);
-        totalPlacements = wallets.reduce((sum, w) => sum + w.pixelCount, 0);
-      }
-
+      const wallets = paymentService.getAllWallets();
+      const totalWallets = wallets.length;
+      const totalSpent = wallets.reduce((sum, w) => sum + w.totalSpent, 0);
+      const totalPlacements = wallets.reduce((sum, w) => sum + w.pixelCount, 0);
       const config = canvasService.getConfig();
+
+      let seasonStats = null;
+      const activeSeason = seasonService.getActiveSeason();
+      if (activeSeason) {
+        const pool = getPool();
+        if (pool) {
+          const { rows } = await pool.query(
+            `SELECT COALESCE(SUM(pixel_count), 0) as placements,
+                    COUNT(*) as wallets,
+                    COALESCE(SUM(total_spent), 0) as spent
+             FROM wallet_season_stats WHERE season_id = $1`,
+            [activeSeason.id]
+          );
+          if (rows[0]) {
+            seasonStats = {
+              seasonId: activeSeason.id,
+              seasonName: activeSeason.name,
+              totalPlacements: parseInt(rows[0].placements),
+              totalWallets: parseInt(rows[0].wallets),
+              totalSpent: Math.round(parseFloat(rows[0].spent) * 10000) / 10000,
+            };
+          }
+        }
+      }
 
       res.json({
         ok: true,
@@ -59,6 +111,7 @@ export function mountRoutes(router: Router): void {
           totalSpent: Math.round(totalSpent * 10000) / 10000,
           canvasSize: `${config.width}x${config.height}`,
         },
+        seasonStats,
       });
     } catch {
       res.status(500).json({ error: "STATS_FETCH_FAILED" });

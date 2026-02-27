@@ -17,3 +17,13 @@ export async function fetchCanvasBinary(): Promise<Uint8Array> {
   const buffer = await res.arrayBuffer();
   return new Uint8Array(buffer);
 }
+
+export async function fetchConfig(): Promise<{
+  config: { width: number; height: number; paymentMode: "mock" | "iota"; collectionAddress?: string };
+  palette: string[];
+  season: { id: number; name: string; startDate: string; endDate: string | null } | null;
+}> {
+  const res = await fetch(`${API_BASE}/api/canvas/config`);
+  const data = await res.json();
+  return { config: data.config, palette: data.palette, season: data.season || null };
+}

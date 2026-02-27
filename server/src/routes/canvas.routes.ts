@@ -3,10 +3,11 @@ import { canvasService } from "../services/canvas.service";
 import { getPixelPrice } from "../services/pricing.service";
 import { paymentService } from "../services/payment";
 import { walletAuth, AuthenticatedRequest } from "../middleware/wallet-auth";
-import { COLOR_PALETTE } from "../types";
+import { COLOR_PALETTE, DEFAULT_CONFIG } from "../types";
 import { broadcastPixelUpdate } from "../ws/socket";
 import { getPool } from "../db/pool";
 import { rateLimit } from "../middleware/rate-limit";
+import { seasonService } from "../services/season.service";
 
 export function mountRoutes(router: Router): void {
   // Full canvas state as binary
@@ -46,11 +47,26 @@ export function mountRoutes(router: Router): void {
     }
   });
 
-  // Canvas config (dimensions, palette)
+  // Canvas config (dimensions, palette, payment mode)
   router.get("/api/canvas/config", (_req, res) => {
     try {
       const config = canvasService.getConfig();
-      res.json({ ok: true, config, palette: COLOR_PALETTE });
+      const activeSeason = seasonService.getActiveSeason();
+      res.json({
+        ok: true,
+        config: {
+          ...config,
+          paymentMode: DEFAULT_CONFIG.paymentMode,
+          collectionAddress: DEFAULT_CONFIG.collectionAddress,
+          paused: canvasService.isPaused(),
+        },
+        palette: COLOR_PALETTE,
+        season: activeSeason ? {
+          id: activeSeason.id,
+          name: activeSeason.name,
+          startDate: activeSeason.startDate,
+        } : null,
+      });
     } catch {
       res.status(500).json({ error: "CONFIG_FETCH_FAILED" });
     }
@@ -59,7 +75,11 @@ export function mountRoutes(router: Router): void {
   // Place pixel with payment
   router.post("/api/canvas/pixel", rateLimit, walletAuth as any, async (req, res) => {
     try {
-      const { x, y, color } = req.body;
+      if (canvasService.isPaused()) {
+        return res.status(503).json({ error: "PAUSED" });
+      }
+
+      const { x, y, color, txDigest } = req.body;
       const walletId = (req as AuthenticatedRequest).walletId!;
 
       if (typeof x !== "number" || typeof y !== "number" || typeof color !== "number") {
@@ -72,8 +92,8 @@ export function mountRoutes(router: Router): void {
       // Calculate price
       const price = getPixelPrice(x, y);
 
-      // Process payment
-      const payment = await paymentService.processPayment(walletId, price, { x, y, color });
+      // Process payment (txDigest required in IOTA mode, ignored in mock)
+      const payment = await paymentService.processPayment(walletId, price, { x, y, color, txDigest });
       if (!payment.success) {
         return res.status(402).json({ error: payment.error, price });
       }
