@@ -4,6 +4,7 @@ import http from "http";
 import path from "path";
 import cors from "cors";
 import { mountRoutes as mountCanvasRoutes } from "./routes/canvas.routes";
+import { mountRoutes as mountWalletRoutes } from "./routes/wallet.routes";
 
 const app = express();
 const server = http.createServer(app);
@@ -19,6 +20,7 @@ app.get("/api/health", (_req, res) => {
 
 // Mount routes
 mountCanvasRoutes(app);
+mountWalletRoutes(app);
 
 // Serve client in production
 if (process.env.NODE_ENV === "production") {
