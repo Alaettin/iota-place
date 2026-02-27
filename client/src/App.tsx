@@ -80,7 +80,7 @@ function App() {
       return prev.filter((s) => !(s.x === x && s.y === y));
     });
   }, []);
-  const { userCount, connected } = useSocket({ onPixelUpdate: handleRemotePixelUpdate, onPauseChange: handlePauseChange, onSeasonChange: handleSeasonChange, onCanvasReset: handleCanvasReset, onCanvasResize: handleCanvasResize, onShieldUpdate: handleShieldUpdate });
+  const { connected } = useSocket({ onPixelUpdate: handleRemotePixelUpdate, onPauseChange: handlePauseChange, onSeasonChange: handleSeasonChange, onCanvasReset: handleCanvasReset, onCanvasResize: handleCanvasResize, onShieldUpdate: handleShieldUpdate });
 
   // Load canvas + config + active shields on mount
   useEffect(() => {
@@ -305,9 +305,11 @@ function App() {
             IOTA
           </span>
         )}
-        <span style={{ marginLeft: 12, fontSize: 11, color: connected ? "#16a34a" : "#ef4444" }}>
-          {connected ? `${userCount} online` : "reconnecting..."}
-        </span>
+        {!connected && (
+          <span style={{ marginLeft: 12, fontSize: 11, color: "#ef4444" }}>
+            reconnecting...
+          </span>
+        )}
         <button
           onClick={() => setShowLeaderboard((s) => !s)}
           style={{
