@@ -8,10 +8,10 @@ interface LegalModalProps {
 }
 
 const env = {
-  name: import.meta.env.VITE_LEGAL_NAME || "[Name not configured]",
-  address: import.meta.env.VITE_LEGAL_ADDRESS || "",
-  email: import.meta.env.VITE_LEGAL_EMAIL || "[Email not configured]",
-  phone: import.meta.env.VITE_LEGAL_PHONE || "",
+  name: "Alaettin Dogan",
+  address: "c/o Online-Impressum #6686\nEuroparing 90\n53757 Sankt Augustin",
+  email: "iota.place@gmail.com",
+  domain: "iota-place.com",
 };
 
 const TITLES: Record<LegalPage, string> = {
@@ -65,12 +65,11 @@ function ImpressumContent() {
   return (
     <div>
       <h3 style={h3FirstStyle}>Information pursuant to § 5 TMG</h3>
-      <p><strong>{env.name}</strong></p>
-      {env.address && <p>{env.address}</p>}
+      <p><strong>{env.domain} - {env.name}</strong></p>
+      {env.address.split("\n").map((line, i) => <p key={i} style={{ margin: "2px 0" }}>{line}</p>)}
 
       <h3 style={h3Style}>Contact</h3>
       <p>Email: {env.email}</p>
-      {env.phone && <p>Phone: {env.phone}</p>}
 
       <h3 style={h3Style}>Liability for Content</h3>
       <p>
@@ -94,8 +93,8 @@ function DatenschutzContent() {
     <div>
       <h3 style={h3FirstStyle}>1. Data Controller</h3>
       <p>
-        <strong>{env.name}</strong><br />
-        {env.address && <>{env.address}<br /></>}
+        <strong>{env.domain} - {env.name}</strong><br />
+        {env.address.split("\n").map((line, i) => <span key={i}>{line}<br /></span>)}
         Email: {env.email}
       </p>
 
