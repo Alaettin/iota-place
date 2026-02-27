@@ -436,7 +436,10 @@ export function startAdminServer(): void {
     }
   });
 
-  app.listen(ADMIN_PORT, "127.0.0.1", () => {
-    console.log(`[Admin] Dashboard running on http://127.0.0.1:${ADMIN_PORT}`);
+  // In Docker: bind 0.0.0.0 (host-side security via docker-compose 127.0.0.1 mapping)
+  // Outside Docker: bind 127.0.0.1 (localhost only)
+  const adminHost = process.env.NODE_ENV === "production" ? "0.0.0.0" : "127.0.0.1";
+  app.listen(ADMIN_PORT, adminHost, () => {
+    console.log(`[Admin] Dashboard running on http://${adminHost}:${ADMIN_PORT}`);
   });
 }
