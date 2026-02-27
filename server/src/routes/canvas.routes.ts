@@ -5,6 +5,7 @@ import { paymentService } from "../services/payment";
 import { walletAuth, AuthenticatedRequest } from "../middleware/wallet-auth";
 import { COLOR_PALETTE } from "../types";
 import { broadcastPixelUpdate } from "../ws/socket";
+import { getPool } from "../db/pool";
 
 export function mountRoutes(router: Router): void {
   // Full canvas state as binary
@@ -91,6 +92,31 @@ export function mountRoutes(router: Router): void {
       });
     } catch {
       res.status(500).json({ error: "PIXEL_PLACE_FAILED" });
+    }
+  });
+
+  // Pixel history
+  router.get("/api/canvas/pixel/:x/:y/history", async (req, res) => {
+    try {
+      const pool = getPool();
+      if (!pool) return res.json({ ok: true, history: [] });
+
+      const x = parseInt(req.params.x, 10);
+      const y = parseInt(req.params.y, 10);
+      const limit = Math.min(parseInt(req.query.limit as string) || 20, 100);
+
+      const { rows } = await pool.query(
+        `SELECT ph.color, ph.price_paid, ph.placed_at,
+                w.display_name, w.address
+         FROM pixel_history ph
+         LEFT JOIN wallets w ON w.id = ph.wallet_id
+         WHERE ph.x = $1 AND ph.y = $2
+         ORDER BY ph.placed_at DESC LIMIT $3`,
+        [x, y, limit]
+      );
+      res.json({ ok: true, history: rows });
+    } catch {
+      res.status(500).json({ error: "HISTORY_FETCH_FAILED" });
     }
   });
 }

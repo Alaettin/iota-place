@@ -1,4 +1,6 @@
 import { DEFAULT_CONFIG, CanvasConfig, Pixel } from "../types";
+import { setPixelInRedis, getCanvasFromRedis, loadCanvasToRedis } from "../db/redis";
+import { getPool } from "../db/pool";
 
 class CanvasService {
   private config: CanvasConfig;
@@ -50,11 +52,44 @@ class CanvasService {
       updatedAt: new Date().toISOString(),
     };
     this.metadata.set(key, pixel);
+
+    // Async write to Redis (fire-and-forget)
+    setPixelInRedis(x, y, color, walletId, pricePaid, overwriteCount, this.config.width).catch(() => {});
+
     return pixel;
   }
 
   getConfig(): CanvasConfig {
     return this.config;
+  }
+
+  // Load canvas state from PostgreSQL on startup
+  async loadFromDb(): Promise<void> {
+    const pool = getPool();
+    if (!pool) return;
+
+    try {
+      const { rows } = await pool.query("SELECT x, y, color, wallet_id, price_paid, overwrite_count, updated_at FROM pixels");
+      for (const row of rows) {
+        const idx = row.y * this.config.width + row.x;
+        this.colorBuffer[idx] = row.color;
+        this.metadata.set(`${row.x},${row.y}`, {
+          x: row.x,
+          y: row.y,
+          color: row.color,
+          walletId: row.wallet_id,
+          pricePaid: parseFloat(row.price_paid),
+          overwriteCount: row.overwrite_count,
+          updatedAt: row.updated_at,
+        });
+      }
+
+      // Sync to Redis
+      await loadCanvasToRedis(this.colorBuffer);
+      console.log(`Canvas loaded from DB: ${rows.length} pixels`);
+    } catch (err) {
+      console.warn("Failed to load canvas from DB:", (err as Error).message);
+    }
   }
 
   private inBounds(x: number, y: number): boolean {

@@ -6,6 +6,11 @@ import cors from "cors";
 import { mountRoutes as mountCanvasRoutes } from "./routes/canvas.routes";
 import { mountRoutes as mountWalletRoutes } from "./routes/wallet.routes";
 import { initSocketServer } from "./ws/socket";
+import { initPool } from "./db/pool";
+import { initRedis } from "./db/redis";
+import { runMigrations } from "./db/migrations";
+import { canvasService } from "./services/canvas.service";
+import { startFlushService } from "./services/flush.service";
 
 const app = express();
 const server = http.createServer(app);
@@ -34,6 +39,23 @@ if (process.env.NODE_ENV === "production") {
   });
 }
 
-server.listen(PORT, () => {
-  console.log(`IOTA Place server running on http://localhost:${PORT}`);
+async function start() {
+  // Initialize databases (optional - falls back to in-memory if unavailable)
+  const pool = await initPool();
+  await initRedis();
+
+  if (pool) {
+    await runMigrations(pool);
+    await canvasService.loadFromDb();
+    startFlushService();
+  }
+
+  server.listen(PORT, () => {
+    console.log(`IOTA Place server running on http://localhost:${PORT}`);
+  });
+}
+
+start().catch((err) => {
+  console.error("Failed to start:", err);
+  process.exit(1);
 });
