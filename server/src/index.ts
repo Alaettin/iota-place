@@ -3,6 +3,7 @@ import express from "express";
 import http from "http";
 import path from "path";
 import cors from "cors";
+import { mountRoutes as mountCanvasRoutes } from "./routes/canvas.routes";
 
 const app = express();
 const server = http.createServer(app);
@@ -15,6 +16,9 @@ app.use(express.json());
 app.get("/api/health", (_req, res) => {
   res.json({ ok: true, timestamp: new Date().toISOString() });
 });
+
+// Mount routes
+mountCanvasRoutes(app);
 
 // Serve client in production
 if (process.env.NODE_ENV === "production") {
