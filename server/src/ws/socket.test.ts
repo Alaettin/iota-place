@@ -9,6 +9,7 @@ import {
   broadcastPause,
   broadcastSeasonChange,
   broadcastCanvasReset,
+  broadcastCanvasResize,
   getIO,
 } from "./socket";
 
@@ -53,6 +54,10 @@ describe("WebSocket Broadcasts", () => {
 
     it("broadcastCanvasReset is a no-op", () => {
       expect(() => broadcastCanvasReset()).not.toThrow();
+    });
+
+    it("broadcastCanvasResize is a no-op", () => {
+      expect(() => broadcastCanvasResize(500, 500)).not.toThrow();
     });
 
     it("getIO returns null", () => {
@@ -116,6 +121,11 @@ describe("WebSocket Broadcasts", () => {
     it("broadcastCanvasReset emits reset event", () => {
       broadcastCanvasReset();
       expect(mockEmit).toHaveBeenCalledWith("canvas:reset");
+    });
+
+    it("broadcastCanvasResize emits resize event with dimensions", () => {
+      broadcastCanvasResize(500, 500);
+      expect(mockEmit).toHaveBeenCalledWith("canvas:resize", { width: 500, height: 500 });
     });
 
     it("getIO returns the server instance", () => {

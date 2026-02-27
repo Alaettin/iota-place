@@ -7,6 +7,11 @@ interface WalletInfo {
   balance: number;
 }
 
+interface ShieldInfo {
+  walletId: string;
+  expiresAt: string;
+}
+
 interface PixelInfoProps {
   pixel: Pixel | null;
   nextPrice: number | null;
@@ -14,6 +19,7 @@ interface PixelInfoProps {
   selectedColor: number;
   wallet: WalletInfo | null;
   placing: boolean;
+  shield: ShieldInfo | null;
   onPlacePixel: () => void;
   onDeselect: () => void;
 }
@@ -25,12 +31,14 @@ export default function PixelInfo({
   selectedColor,
   wallet,
   placing,
+  shield,
   onPlacePixel,
   onDeselect,
 }: PixelInfoProps) {
   if (!selectedPixel) return null;
 
   const canAfford = wallet && nextPrice !== null && wallet.balance >= nextPrice;
+  const isShielded = !!shield;
 
   return (
     <div
@@ -102,6 +110,23 @@ export default function PixelInfo({
         </>
       )}
 
+      {/* Shield indicator */}
+      {isShielded && (
+        <div
+          style={{
+            padding: "6px 10px",
+            background: "rgba(6,182,212,0.1)",
+            borderRadius: 6,
+            fontSize: 12,
+            color: "#0891b2",
+            fontWeight: 600,
+            marginBottom: 4,
+          }}
+        >
+          Shielded until {new Date(shield.expiresAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+        </div>
+      )}
+
       {/* Separator */}
       <div style={{ borderTop: "1px solid rgba(0,0,0,0.08)", margin: "10px 0" }} />
 
@@ -144,25 +169,27 @@ export default function PixelInfo({
       ) : (
         <button
           onClick={onPlacePixel}
-          disabled={placing || !canAfford}
+          disabled={placing || !canAfford || isShielded}
           style={{
             width: "100%",
             padding: "10px 0",
-            background: placing ? "#a0aec0" : canAfford ? "#3b82f6" : "#e2e8f0",
-            color: placing ? "#fff" : canAfford ? "#fff" : "#a0aec0",
+            background: isShielded ? "#e2e8f0" : placing ? "#a0aec0" : canAfford ? "#3b82f6" : "#e2e8f0",
+            color: isShielded ? "#a0aec0" : placing ? "#fff" : canAfford ? "#fff" : "#a0aec0",
             border: "none",
             borderRadius: 8,
             fontSize: 14,
             fontWeight: 600,
-            cursor: placing || !canAfford ? "not-allowed" : "pointer",
+            cursor: placing || !canAfford || isShielded ? "not-allowed" : "pointer",
             transition: "background 0.15s",
           }}
         >
-          {placing
-            ? "Placing..."
-            : !canAfford
-              ? "Insufficient balance"
-              : `Place Pixel (${nextPrice?.toFixed(4) ?? "..."} IOTA)`}
+          {isShielded
+            ? "Pixel is shielded"
+            : placing
+              ? "Placing..."
+              : !canAfford
+                ? "Insufficient balance"
+                : `Place Pixel (${nextPrice?.toFixed(4) ?? "..."} IOTA)`}
         </button>
       )}
     </div>

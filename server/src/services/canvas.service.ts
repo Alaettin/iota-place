@@ -1,6 +1,7 @@
 import { DEFAULT_CONFIG, CanvasConfig, Pixel } from "../types";
 import { setPixelInRedis, getCanvasFromRedis, loadCanvasToRedis, getRedis } from "../db/redis";
 import { getPool } from "../db/pool";
+import { broadcastCanvasResize } from "../ws/socket";
 import { PNG } from "pngjs";
 
 // Use globalThis to avoid CJS/ESM dual-module issue
@@ -63,11 +64,85 @@ export class CanvasService {
       console.error("[Canvas] Redis write failed:", (err as Error).message);
     });
 
+    // Check auto-expand after placement
+    this.checkAutoExpand();
+
     return pixel;
   }
 
   getConfig(): CanvasConfig {
     return this.config;
+  }
+
+  // --- Canvas Growth ---
+
+  static readonly VALID_SIZES = [250, 500, 750, 1000] as const;
+
+  getOccupancy(): { total: number; filled: number; percent: number } {
+    const total = this.colorBuffer.length;
+    let filled = 0;
+    for (let i = 0; i < total; i++) {
+      if (this.colorBuffer[i] !== 0) filled++;
+    }
+    return { total, filled, percent: total > 0 ? Math.round((filled / total) * 10000) / 100 : 0 };
+  }
+
+  async resize(newWidth: number, newHeight: number): Promise<void> {
+    if (!CanvasService.VALID_SIZES.includes(newWidth as any) || !CanvasService.VALID_SIZES.includes(newHeight as any)) {
+      throw new Error(`Invalid size: ${newWidth}x${newHeight}. Valid: ${CanvasService.VALID_SIZES.join(", ")}`);
+    }
+    if (newWidth < this.config.width || newHeight < this.config.height) {
+      throw new Error("Canvas can only grow, not shrink");
+    }
+    if (newWidth === this.config.width && newHeight === this.config.height) return;
+
+    const oldWidth = this.config.width;
+    const oldHeight = this.config.height;
+    const newBuffer = new Uint8Array(newWidth * newHeight);
+
+    // Copy old rows into new buffer
+    for (let y = 0; y < oldHeight; y++) {
+      newBuffer.set(
+        this.colorBuffer.subarray(y * oldWidth, y * oldWidth + oldWidth),
+        y * newWidth
+      );
+    }
+
+    this.colorBuffer = newBuffer;
+    this.config = { ...this.config, width: newWidth, height: newHeight };
+
+    // Update DB
+    const pool = getPool();
+    if (pool) {
+      await pool.query(
+        "UPDATE canvas_config SET current_width = $1, current_height = $2 WHERE id = 1",
+        [newWidth, newHeight]
+      );
+    }
+
+    // Update Redis
+    await loadCanvasToRedis(this.colorBuffer);
+
+    console.log(`[Canvas] Resized from ${oldWidth}x${oldHeight} to ${newWidth}x${newHeight}`);
+  }
+
+  checkAutoExpand(): boolean {
+    if (this.paused) return false;
+
+    const { percent } = this.getOccupancy();
+    if (percent < 80) return false;
+
+    const currentSize = this.config.width;
+    const idx = CanvasService.VALID_SIZES.indexOf(currentSize as any);
+    if (idx < 0 || idx >= CanvasService.VALID_SIZES.length - 1) return false;
+
+    const nextSize = CanvasService.VALID_SIZES[idx + 1];
+    this.resize(nextSize, nextSize).then(() => {
+      broadcastCanvasResize(nextSize, nextSize);
+    }).catch((err) => {
+      console.error("[Canvas] Auto-expand failed:", (err as Error).message);
+    });
+    return true;
   }
 
   isPaused(): boolean {
@@ -85,6 +160,18 @@ export class CanvasService {
     if (!pool) return;
 
     try {
+      // Load canvas dimensions from config table
+      const { rows: configRows } = await pool.query("SELECT current_width, current_height FROM canvas_config WHERE id = 1");
+      if (configRows.length > 0) {
+        const dbWidth = configRows[0].current_width;
+        const dbHeight = configRows[0].current_height;
+        if (dbWidth !== this.config.width || dbHeight !== this.config.height) {
+          this.config = { ...this.config, width: dbWidth, height: dbHeight };
+          this.colorBuffer = new Uint8Array(dbWidth * dbHeight);
+          console.log(`[Canvas] Loaded dimensions from DB: ${dbWidth}x${dbHeight}`);
+        }
+      }
+
       const { rows } = await pool.query("SELECT x, y, color, wallet_id, price_paid, overwrite_count, updated_at FROM pixels");
       for (const row of rows) {
         const idx = row.y * this.config.width + row.x;
@@ -108,16 +195,27 @@ export class CanvasService {
     }
   }
 
-  // Reset entire canvas to white (used at season end)
+  // Reset entire canvas to white and dimensions to 250x250 (used at season end)
   async resetCanvas(): Promise<void> {
-    // Reset in-memory
-    this.colorBuffer.fill(0);
+    // Reset dimensions to default 250x250
+    const defaultW = DEFAULT_CONFIG.width;
+    const defaultH = DEFAULT_CONFIG.height;
+    const dimensionsChanged = this.config.width !== defaultW || this.config.height !== defaultH;
+
+    this.config = { ...this.config, width: defaultW, height: defaultH };
+    this.colorBuffer = new Uint8Array(defaultW * defaultH);
     this.metadata.clear();
 
     // Reset in PostgreSQL
     const pool = getPool();
     if (pool) {
       await pool.query("DELETE FROM pixels");
+      if (dimensionsChanged) {
+        await pool.query(
+          "UPDATE canvas_config SET current_width = $1, current_height = $2 WHERE id = 1",
+          [defaultW, defaultH]
+        );
+      }
     }
 
     // Reset in Redis
@@ -131,7 +229,7 @@ export class CanvasService {
       await redis.del("canvas:dirty");
     }
 
-    console.log("[Canvas] Full reset complete");
+    console.log(`[Canvas] Full reset complete (${defaultW}x${defaultH})`);
   }
 
   // Generate PNG snapshot of current canvas state

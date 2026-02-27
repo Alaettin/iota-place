@@ -1,12 +1,19 @@
 import { useRef, useEffect, useCallback, useState } from "react";
 import { COLOR_PALETTE } from "../types";
 
+interface ShieldOverlay {
+  x: number;
+  y: number;
+}
+
 interface CanvasProps {
   colorData: Uint8Array | null;
   width: number;
   height: number;
   selectedColor: number;
   selectedPixel: { x: number; y: number } | null;
+  activeShields?: ShieldOverlay[];
+  shieldMode?: boolean;
   onPixelClick: (x: number, y: number) => void;
   onPixelHover: (x: number, y: number) => void;
   onDeselect: () => void;
@@ -17,12 +24,14 @@ function hexToRgb(hex: string): [number, number, number] {
   return [(val >> 16) & 255, (val >> 8) & 255, val & 255];
 }
 
-export default function Canvas({ colorData, width, height, selectedColor, selectedPixel, onPixelClick, onPixelHover, onDeselect }: CanvasProps) {
+export default function Canvas({ colorData, width, height, selectedColor, selectedPixel, activeShields, shieldMode, onPixelClick, onPixelHover, onDeselect }: CanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const overlayRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [zoom, setZoom] = useState(3);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
+  const zoomRef = useRef(zoom);
+  zoomRef.current = zoom;
   const isDragging = useRef(false);
   const dragStart = useRef({ x: 0, y: 0 });
   const lastOffset = useRef({ x: 0, y: 0 });
@@ -53,7 +62,7 @@ export default function Canvas({ colorData, width, height, selectedColor, select
     drawCanvas();
   }, [drawCanvas]);
 
-  // Draw selection overlay
+  // Draw selection + shield overlay
   useEffect(() => {
     const overlay = overlayRef.current;
     if (!overlay) return;
@@ -64,11 +73,21 @@ export default function Canvas({ colorData, width, height, selectedColor, select
     overlay.height = height;
     ctx.clearRect(0, 0, width, height);
 
+    // Draw shield indicators (cyan border around shielded pixels)
+    if (activeShields && activeShields.length > 0) {
+      const lw = Math.max(1.5 / zoom, 0.1);
+      ctx.strokeStyle = "#06b6d4";
+      ctx.lineWidth = lw;
+      for (const s of activeShields) {
+        ctx.strokeRect(s.x, s.y, 1, 1);
+      }
+    }
+
     if (selectedPixel) {
       const { x, y } = selectedPixel;
       // Outer border (dark)
       const lw = Math.max(2 / zoom, 0.15);
-      ctx.strokeStyle = "#1a1a2e";
+      ctx.strokeStyle = shieldMode ? "#06b6d4" : "#1a1a2e";
       ctx.lineWidth = lw;
       ctx.strokeRect(x - lw, y - lw, 1 + lw * 2, 1 + lw * 2);
       // Inner border (white for contrast)
@@ -76,23 +95,36 @@ export default function Canvas({ colorData, width, height, selectedColor, select
       ctx.lineWidth = lw * 0.6;
       ctx.strokeRect(x, y, 1, 1);
     }
-  }, [selectedPixel, width, height, zoom]);
+  }, [selectedPixel, width, height, zoom, activeShields, shieldMode]);
 
-  // Center canvas helper
+  // Center canvas helper (uses zoomRef to avoid re-triggering on zoom changes)
   const centerCanvas = useCallback(() => {
     const container = containerRef.current;
     if (!container) return;
     const rect = container.getBoundingClientRect();
     setOffset({
-      x: (rect.width - width * zoom) / 2,
-      y: (rect.height - height * zoom) / 2,
+      x: (rect.width - width * zoomRef.current) / 2,
+      y: (rect.height - height * zoomRef.current) / 2,
     });
-  }, [width, height, zoom]);
+  }, [width, height]);
 
-  // Center canvas on mount
+  // Calculate fitting zoom and center on mount or canvas resize
   useEffect(() => {
-    centerCanvas();
-  }, [centerCanvas]);
+    const container = containerRef.current;
+    if (!container) return;
+    const rect = container.getBoundingClientRect();
+    // Zoom so that canvas fills ~70% of viewport
+    const fitZoom = Math.min(
+      (rect.width * 0.7) / width,
+      (rect.height * 0.7) / height
+    );
+    const newZoom = Math.max(1, Math.min(3, fitZoom));
+    setZoom(newZoom);
+    setOffset({
+      x: (rect.width - width * newZoom) / 2,
+      y: (rect.height - height * newZoom) / 2,
+    });
+  }, [width, height]);
 
   // Convert screen coords to pixel coords
   const screenToPixel = useCallback(

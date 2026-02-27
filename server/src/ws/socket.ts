@@ -61,10 +61,28 @@ export function broadcastSeasonChange(season: { id: number; name: string; startD
   s.emit("season:change", { season });
 }
 
+export function broadcastCanvasResize(width: number, height: number): void {
+  const s = io();
+  if (!s) return;
+  s.emit("canvas:resize", { width, height });
+}
+
 export function broadcastCanvasReset(): void {
   const s = io();
   if (!s) return;
   s.emit("canvas:reset");
+}
+
+export function broadcastShieldActivated(x: number, y: number, expiresAt: string): void {
+  const s = io();
+  if (!s) return;
+  s.emit("powerup:shield", { x, y, expiresAt, active: true });
+}
+
+export function broadcastShieldExpired(x: number, y: number): void {
+  const s = io();
+  if (!s) return;
+  s.emit("powerup:shield", { x, y, active: false });
 }
 
 export function getIO(): SocketServer | null {

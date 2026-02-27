@@ -14,6 +14,7 @@ export async function runMigrations(pool: Pool): Promise<void> {
     { name: "002_indexes", fn: migration002 },
     { name: "003_drop_wallet_fk", fn: migration003 },
     { name: "004_season_stats", fn: migration004 },
+    { name: "005_power_ups", fn: migration005 },
   ];
 
   for (const m of migrations) {
@@ -132,4 +133,54 @@ async function migration004(pool: Pool): Promise<void> {
   await pool.query("CREATE INDEX IF NOT EXISTS idx_wss_season_pixels ON wallet_season_stats(season_id, pixel_count DESC)");
   await pool.query("CREATE INDEX IF NOT EXISTS idx_wss_season_spent ON wallet_season_stats(season_id, total_spent DESC)");
   await pool.query("CREATE INDEX IF NOT EXISTS idx_pixel_history_season ON pixel_history(season_id)");
+}
+
+async function migration005(pool: Pool): Promise<void> {
+  // Power-Up catalog (extensible for future power-ups)
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS power_up_catalog (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      description TEXT NOT NULL,
+      price NUMERIC(20, 6) NOT NULL,
+      duration_seconds INTEGER,
+      is_active BOOLEAN NOT NULL DEFAULT true
+    )
+  `);
+
+  // Seed: Shield
+  await pool.query(`
+    INSERT INTO power_up_catalog (id, name, description, price, duration_seconds)
+    VALUES ('shield', 'Shield', 'Protect a pixel from being overwritten for 1 hour', 2.0, 3600)
+    ON CONFLICT (id) DO NOTHING
+  `);
+
+  // Wallet inventory (purchased, not yet used power-ups)
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS wallet_power_ups (
+      id SERIAL PRIMARY KEY,
+      wallet_id TEXT NOT NULL,
+      power_up_id TEXT NOT NULL REFERENCES power_up_catalog(id),
+      purchased_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      used_at TIMESTAMPTZ
+    )
+  `);
+
+  // Active effects (currently running timed power-ups)
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS active_effects (
+      id SERIAL PRIMARY KEY,
+      power_up_id TEXT NOT NULL REFERENCES power_up_catalog(id),
+      wallet_id TEXT NOT NULL,
+      target_x SMALLINT,
+      target_y SMALLINT,
+      activated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      expires_at TIMESTAMPTZ NOT NULL
+    )
+  `);
+
+  await pool.query("CREATE INDEX IF NOT EXISTS idx_active_effects_pixel ON active_effects(target_x, target_y)");
+  await pool.query("CREATE INDEX IF NOT EXISTS idx_active_effects_wallet ON active_effects(wallet_id)");
+  await pool.query("CREATE INDEX IF NOT EXISTS idx_active_effects_expires ON active_effects(expires_at)");
+  await pool.query("CREATE INDEX IF NOT EXISTS idx_wallet_power_ups_wallet ON wallet_power_ups(wallet_id)");
 }

@@ -27,8 +27,9 @@ Saison-basiert mit Leaderboards, Power-Ups und wachsendem Canvas.
 | 9.3 | Wallet- & Pixel-DB-Persistenz | erledigt |
 | 10 | Saison-System | erledigt |
 | 10.1 | Testing-Setup | erledigt |
-| 11 | Power-Up-Shop | offen |
-| 12 | Canvas-Wachstum | offen |
+| 11 | Power-Up-Shop (Shield) | erledigt |
+| 12 | Canvas-Wachstum | erledigt |
+| 12.1 | Rechtliche Seiten | erledigt |
 | 13 | AI-Moderation | offen |
 | 14 | PWA & Mobile | offen |
 
@@ -146,7 +147,7 @@ Saison-basiert mit Leaderboards, Power-Ups und wachsendem Canvas.
 
 ### Phase 10.1: Testing-Setup
 - **Framework:** Vitest (TS-nativ, esbuild-basiert)
-- **126 Tests** in 12 Dateien, alle gruen
+- **144 Tests** in 12 Dateien, alle gruen
 - Singleton-Integritaet (globalThis-Fix Regression-Guard)
 - Canvas Service, Payment Service, Pricing Service Unit-Tests
 - Flush-Pipeline Tests (Redis→PostgreSQL Logik mit Mocks)
@@ -157,50 +158,45 @@ Saison-basiert mit Leaderboards, Power-Ups und wachsendem Canvas.
 - Refactorings: `CanvasService` Klasse exportiert, `flushOnce()` extrahiert
 - Dokumentation: `TEST.md`
 
+### Phase 12: Canvas-Wachstum
+- `CanvasService` erweitert: `getOccupancy()`, `resize()`, `checkAutoExpand()`
+- Auto-Expand bei ≥80% Belegung: 250→500→750→1000 (nur naechste Stufe, nie ueberspringen)
+- `loadFromDb()` liest Canvas-Dimensionen aus `canvas_config` Tabelle
+- Admin-Endpoint `POST /api/admin/canvas/resize` (manuelle Groessenaenderung)
+- Admin-UI: Resize-Buttons, Occupancy-Balken (gruen/gelb/rot)
+- WebSocket-Event `canvas:resize` broadcastet neue Dimensionen
+- Client: Dynamische Canvas-Groesse aus Config, `canvas:resize` Handler laedt Canvas neu
+- Kein Shrink erlaubt, nur gueltige Stufen (250, 500, 750, 1000)
+- Season-Ende setzt Canvas immer auf 250x250 zurueck (ein Button statt zwei)
+- Zoom-Fix: dynamisches initiales Zoom-Level, kein Re-Center bei Zoom-Aenderung
+- **144 Tests** (+18 neue: Occupancy, Resize, AutoExpand, ResetDimensions, broadcastCanvasResize)
+
+### Phase 12.1: Rechtliche Seiten
+- Impressum (§5 TMG), Datenschutzerklaerung (DSGVO Art. 13/14), AGB als Modal-Overlays
+- Cookie-Consent-Banner (localStorage-basiert, kein echtes Cookie)
+- Footer-Komponente mit Links zu allen drei Seiten
+- Betreiberdaten ueber `VITE_LEGAL_*` Env-Vars (`client/.env`), nicht im Source-Code
+- `client/.env.example` mit Beispielwerten fuer Git
+- ESC oder Klick auf Backdrop schliesst Modals
+- z-index: 300 (Cookie-Banner), 400 (Legal-Modal)
+
+### Phase 11: Power-Up-Shop (Shield)
+- Power-Up-Infrastruktur: DB-Tabellen (`power_up_catalog`, `wallet_power_ups`, `active_effects`), erweiterbar fuer zukuenftige Power-Ups
+- `PowerUpService` Singleton mit In-Memory Shield-Map (`Map<"x,y", ShieldEntry>`) fuer O(1) Lookups
+- Shield Power-Up: Pixel 1h vor Ueberschreiben geschuetzt, Kosten 2 IOTA
+- Kauf-Flow: `POST /api/powerups/purchase` → Balance-Abzug via `paymentService.processPayment()`
+- Aktivierungs-Flow: `POST /api/powerups/activate` → Validiert Eigentum, erstellt Effekt, broadcastet via WebSocket
+- Shield-Check bei Pixel-Placement: `isPixelShielded()` vor Preisberechnung, 403 PIXEL_SHIELDED bei geschuetztem Pixel
+- Client: Shop-Modal (`PowerUpShop.tsx`), Shield-Activation-Mode (klick auf eigenes Pixel), Shield-Overlay auf Canvas (Cyan-Rahmen)
+- PixelInfo: Shield-Anzeige + deaktivierter Place-Button bei geschuetztem Pixel
+- WebSocket-Event `powerup:shield` fuer Echtzeit-Updates (Aktivierung/Ablauf)
+- Admin: Shield-Stats + manuelles Entfernen aktiver Shields
+- Cleanup: Lazy (bei Zugriff) + periodisch (alle 60 Sekunden)
+- **209 Tests** (186 Server + 23 Client)
+
 ---
 
 ## Offene Phasen
-
-### Phase 11: Power-Up-Shop
-
-**Ziel:** Spezialeffekte kaufbar mit IOTA-Tokens.
-
-Geplante Power-Ups (13 Items):
-
-| # | Power-Up | Effekt | Preis |
-|---|----------|--------|-------|
-| 1 | Shield | Pixel 1h geschuetzt | 2 IOTA |
-| 2 | Multi-Place | 3x3 Block setzen | 5 IOTA |
-| 3 | Color Bomb | 5x5 Bereich einfaerben | 10 IOTA |
-| 4 | Undo | Letztes Pixel zuruecksetzen | 1 IOTA |
-| 5 | Speed Boost | Rate-Limit halbiert fuer 5 Min | 3 IOTA |
-| 6 | Price Freeze | Pixel-Preis einfrieren fuer 10 Min | 5 IOTA |
-| 7 | Invisibility | Pixel-Owner versteckt fuer 1h | 2 IOTA |
-| 8 | Territory Claim | 10x10 Bereich claimen (Bonus-XP) | 20 IOTA |
-| 9 | Rainbow | Pixel wechselt automatisch Farbe | 3 IOTA |
-| 10 | Magnet | Zieht Pixel-Placements in Umgebung an | 5 IOTA |
-| 11 | Time Warp | Pixel auf Zustand vor 1h zuruecksetzen | 4 IOTA |
-| 12 | Golden Pixel | Pixel leuchtet golden (visueller Effekt) | 8 IOTA |
-| 13 | Nuke | 20x20 Bereich auf weiss zuruecksetzen | 50 IOTA |
-
-**Implementierung:**
-- Shop-UI (Modal oder Sidebar)
-- Power-Up-Inventory pro Wallet
-- Effekt-System (serverseitig, Validierung)
-- DB-Tabellen: `power_ups`, `wallet_power_ups`, `active_effects`
-
-### Phase 12: Canvas-Wachstum
-
-**Ziel:** Canvas waechst automatisch bei hoher Belegung.
-
-1. Belegungs-Tracking (Prozent nicht-weisser Pixel)
-2. Auto-Expand bei 80% Belegung: 250 → 500 → 750 → 1000
-3. Canvas-Config Update (DB + Redis)
-4. Frontend: Dynamische Canvas-Groesse
-5. Smooth Transition (bestehende Pixel bleiben)
-6. Admin-Override: Manuelle Groessenaenderung
-
-**Stufen:** 250x250 (62.5 KB) → 500x500 (250 KB) → 750x750 (562.5 KB) → 1000x1000 (1 MB)
 
 ### Phase 13: AI-Moderation
 
@@ -249,6 +245,19 @@ seasons (id SERIAL PK, name TEXT, start_date, end_date, snapshot_url TEXT,
 -- Config (Singleton)
 canvas_config (id INT PK CHECK(id=1), base_price NUMERIC, price_factor NUMERIC,
                current_width SMALLINT, current_height SMALLINT, active_season_id INT FK)
+
+-- Power-Up Katalog
+power_up_catalog (id TEXT PK, name TEXT, description TEXT, price NUMERIC(20,6),
+                  duration_seconds INT, is_active BOOL DEFAULT true)
+
+-- Wallet Power-Up Inventar
+wallet_power_ups (id SERIAL PK, wallet_id TEXT, power_up_id TEXT FK,
+                  purchased_at TIMESTAMPTZ, used_at TIMESTAMPTZ)
+
+-- Aktive Effekte (laufende Shields)
+active_effects (id SERIAL PK, power_up_id TEXT FK, wallet_id TEXT,
+                target_x SMALLINT, target_y SMALLINT, activated_at TIMESTAMPTZ,
+                expires_at TIMESTAMPTZ)
 ```
 
 **Hinweis:** wallet_id ist TEXT (kein UUID FK), damit "admin" als Wert moeglich ist und der Flush-Service keine FK-Fehler wirft.

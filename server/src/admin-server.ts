@@ -5,11 +5,12 @@ import { requireAdmin } from "./middleware/admin-auth";
 import { paymentService } from "./services/payment";
 import { canvasService } from "./services/canvas.service";
 import { seasonService } from "./services/season.service";
-import { broadcastPixelUpdate, broadcastPause, broadcastSeasonChange, broadcastCanvasReset } from "./ws/socket";
+import { broadcastPixelUpdate, broadcastPause, broadcastSeasonChange, broadcastCanvasReset, broadcastCanvasResize } from "./ws/socket";
 import { createBackup } from "./services/backup.service";
 import { COLOR_PALETTE } from "./types";
 import { getPool } from "./db/pool";
 import { getPixelPrice } from "./services/pricing.service";
+import { powerUpService } from "./services/powerup.service";
 
 export function startAdminServer(): void {
   const app = express();
@@ -34,6 +35,8 @@ export function startAdminServer(): void {
       const bannedWallets = wallets.filter((w) => w.isBanned).length;
       const config = canvasService.getConfig();
 
+      const occupancy = canvasService.getOccupancy();
+
       res.json({
         ok: true,
         stats: {
@@ -43,6 +46,7 @@ export function startAdminServer(): void {
           totalSpent: Math.round(totalSpent * 10000) / 10000,
           canvasSize: `${config.width}x${config.height}`,
           paused: canvasService.isPaused(),
+          occupancy,
         },
       });
     } catch {
@@ -234,6 +238,28 @@ export function startAdminServer(): void {
     }
   });
 
+  // Canvas resize
+  app.post("/api/admin/canvas/resize", requireAdmin as any, async (req, res) => {
+    try {
+      const { width, height } = req.body;
+      if (typeof width !== "number" || typeof height !== "number") {
+        return res.status(400).json({ error: "INVALID_PARAMS" });
+      }
+      const validSizes = [250, 500, 750, 1000];
+      if (!validSizes.includes(width) || !validSizes.includes(height)) {
+        return res.status(400).json({ error: "INVALID_SIZE", validSizes });
+      }
+
+      await canvasService.resize(width, height);
+      broadcastCanvasResize(width, height);
+
+      const config = canvasService.getConfig();
+      res.json({ ok: true, canvasSize: `${config.width}x${config.height}` });
+    } catch (err) {
+      res.status(400).json({ error: (err as Error).message });
+    }
+  });
+
   // --- Season Management ---
 
   // Get current season
@@ -275,15 +301,13 @@ export function startAdminServer(): void {
     }
   });
 
-  // End season (with optional canvas reset)
-  app.post("/api/admin/season/end", requireAdmin as any, async (req, res) => {
+  // End season (always resets canvas to 250x250)
+  app.post("/api/admin/season/end", requireAdmin as any, async (_req, res) => {
     try {
       const activeSeason = seasonService.getActiveSeason();
       if (!activeSeason) {
         return res.status(409).json({ error: "NO_ACTIVE_SEASON" });
       }
-
-      const { resetCanvas: shouldReset } = req.body;
 
       // Step 1: Pause canvas
       canvasService.setPaused(true);
@@ -306,13 +330,10 @@ export function startAdminServer(): void {
       const snapshotUrl = `snapshots/${snapshotFilename}`;
       const endedSeason = await seasonService.endSeason(snapshotUrl);
 
-      // Step 5: Optionally reset canvas
-      let canvasReset = false;
-      if (shouldReset) {
-        await canvasService.resetCanvas();
-        broadcastCanvasReset();
-        canvasReset = true;
-      }
+      // Step 5: Reset canvas (clears pixels + resets to 250x250)
+      await canvasService.resetCanvas();
+      broadcastCanvasReset();
+      broadcastCanvasResize(250, 250);
 
       // Step 6: Resume canvas
       canvasService.setPaused(false);
@@ -321,7 +342,7 @@ export function startAdminServer(): void {
       // Step 7: Broadcast season ended
       broadcastSeasonChange(null);
 
-      res.json({ ok: true, season: endedSeason, snapshotUrl, canvasReset });
+      res.json({ ok: true, season: endedSeason, snapshotUrl, canvasReset: true });
     } catch (err) {
       console.error("[Admin] End season failed:", err);
       // CRITICAL: Always resume canvas even on error
@@ -385,6 +406,28 @@ export function startAdminServer(): void {
       });
     } catch {
       res.status(500).json({ error: "SEASON_LEADERBOARD_FAILED" });
+    }
+  });
+
+  // Power-Up stats
+  app.get("/api/admin/powerups/stats", requireAdmin as any, async (_req, res) => {
+    try {
+      const stats = await powerUpService.getStats();
+      const shields = powerUpService.getAllActiveShields();
+      res.json({ ok: true, stats, activeShields: shields });
+    } catch {
+      res.status(500).json({ error: "POWERUP_STATS_FAILED" });
+    }
+  });
+
+  // Remove active effect (admin override)
+  app.delete("/api/admin/powerups/effects/:id", requireAdmin as any, async (req, res) => {
+    try {
+      const effectId = parseInt(req.params.id, 10);
+      const removed = await powerUpService.removeEffect(effectId);
+      res.json({ ok: true, removed });
+    } catch {
+      res.status(500).json({ error: "EFFECT_REMOVE_FAILED" });
     }
   });
 

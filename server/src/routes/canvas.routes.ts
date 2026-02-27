@@ -2,6 +2,7 @@ import { Router } from "express";
 import { canvasService } from "../services/canvas.service";
 import { getPixelPrice } from "../services/pricing.service";
 import { paymentService } from "../services/payment";
+import { powerUpService } from "../services/powerup.service";
 import { walletAuth, AuthenticatedRequest } from "../middleware/wallet-auth";
 import { COLOR_PALETTE, DEFAULT_CONFIG } from "../types";
 import { broadcastPixelUpdate } from "../ws/socket";
@@ -29,7 +30,8 @@ export function mountRoutes(router: Router): void {
       const pixel = canvasService.getPixel(x, y);
       if (!pixel) return res.status(400).json({ error: "OUT_OF_BOUNDS" });
       const price = getPixelPrice(x, y);
-      res.json({ ok: true, pixel, nextPrice: price });
+      const shield = powerUpService.getPixelShield(x, y);
+      res.json({ ok: true, pixel, nextPrice: price, shield });
     } catch {
       res.status(500).json({ error: "PIXEL_FETCH_FAILED" });
     }
@@ -87,6 +89,16 @@ export function mountRoutes(router: Router): void {
       }
       if (color < 0 || color > 31) {
         return res.status(400).json({ error: "INVALID_COLOR" });
+      }
+
+      // Check if pixel is shielded
+      if (powerUpService.isPixelShielded(x, y)) {
+        const shield = powerUpService.getPixelShield(x, y);
+        return res.status(403).json({
+          error: "PIXEL_SHIELDED",
+          shieldedBy: shield?.walletId,
+          expiresAt: shield?.expiresAt,
+        });
       }
 
       // Calculate price

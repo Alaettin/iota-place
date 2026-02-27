@@ -8,11 +8,12 @@
 - `vitest` — Test-Runner
 - `supertest` + `@types/supertest` — HTTP-Endpoint-Tests (fuer spaetere API-Tests)
 
-**Konfiguration:** `server/vitest.config.ts`
+**Konfiguration:** `server/vitest.config.ts`, `client/vitest.config.ts`
 
 ## Tests ausfuehren
 
 ```bash
+# --- Server-Tests ---
 cd server
 
 # Alle Tests einmalig
@@ -26,6 +27,15 @@ npm run test:unit
 
 # Nur Integration-Tests (braucht laufende Docker-Container)
 npm run test:integration
+
+# --- Client-Tests ---
+cd client
+
+# Alle Tests einmalig
+npm test
+
+# Watch-Modus
+npm run test:watch
 ```
 
 ## Test-Dateien
@@ -33,21 +43,44 @@ npm run test:integration
 | Datei | Kategorie | Tests | Beschreibung |
 |-------|-----------|-------|-------------|
 | `src/__tests__/singleton.test.ts` | Singleton-Integritaet | 6 | Validiert globalThis-Fix fuer CJS/ESM Dual-Module-Bug |
-| `src/services/canvas.service.test.ts` | Canvas Service | 21 | Kern-Domaenenlogik: setPixel, getPixel, Bounds, Reset, PNG |
+| `src/services/canvas.service.test.ts` | Canvas Service | 37 | Kern-Domaenenlogik: setPixel, getPixel, Bounds, Reset+Dimensions, PNG, Occupancy, Resize, AutoExpand |
 | `src/services/payment/mock-payment.service.test.ts` | Payment Service | 17 | Wallet-Lifecycle: Connect, Balance, Payment, Funds |
 | `src/services/pricing.service.test.ts` | Pricing Service | 5 | Preisberechnung: Basis, Overwrite-Eskalation, Rundung |
 | `src/__tests__/flush-pipeline.integration.test.ts` | Flush-Pipeline | 11 | Redis→PostgreSQL Flush: Dirty Pixels, Season-Stats, Rollback |
 | `src/services/season.service.test.ts` | Season Service | 16 | Season-Lifecycle: Start, End, Load, GetAll, GetById |
-| `src/routes/canvas.routes.test.ts` | Canvas Routes | 12 | GET/POST Endpoints: Canvas, Pixel, Config, Placement |
+| `src/routes/canvas.routes.test.ts` | Canvas Routes | 15 | GET/POST Endpoints: Canvas, Pixel, Config, Placement, Shield-Integration |
 | `src/routes/wallet.routes.test.ts` | Wallet Routes | 7 | Connect, Me, Balance, Faucet |
 | `src/routes/leaderboard.routes.test.ts` | Leaderboard Routes | 8 | All-Time, Season, Stats |
+| `src/services/powerup.service.test.ts` | Power-Up Service | 26 | Katalog, Kauf, Shield-Aktivierung, Ablauf, Cleanup, Stats |
+| `src/routes/powerup.routes.test.ts` | Power-Up Routes | 13 | Catalog, Purchase, Inventory, Activate, Shields |
 | `src/middleware/wallet-auth.test.ts` | Wallet-Auth Middleware | 4 | 401/403 Checks, Valid Pass-Through |
 | `src/middleware/rate-limit.test.ts` | Rate-Limit Middleware | 5 | 5-Request-Window, 429, Reset |
-| `src/ws/socket.test.ts` | WebSocket Broadcasts | 14 | Alle Broadcast-Funktionen, Binary-Format, No-Op bei null |
+| `src/ws/socket.test.ts` | WebSocket Broadcasts | 16 | Alle Broadcast-Funktionen inkl. Resize, Shield, Binary-Format, No-Op bei null |
 
-**Gesamt: 126 Tests**
+**Server-Gesamt: 186 Tests**
 
-## Test-Kategorien
+---
+
+## Client-Tests
+
+**Framework:** Vitest + happy-dom + @testing-library/react
+
+**Ausfuehren:** `cd client && npm test`
+
+| Datei | Kategorie | Tests | Beschreibung |
+|-------|-----------|-------|-------------|
+| `src/components/LegalPages.test.tsx` | Legal Modal | 8 | Render (null, 3 Seiten), Close-Button, Backdrop-Click, Content-Click, Env-Fallback |
+| `src/components/CookieBanner.test.tsx` | Cookie Banner | 3 | Banner-Text, Accept-Callback, Learn-more-Callback |
+| `src/components/Footer.test.tsx` | Footer | 4 | Alle Links sichtbar, 3 onClick-Callbacks |
+| `src/components/PowerUpShop.test.tsx` | Power-Up Shop | 8 | Render, Katalog, Buy-Button-States, Close, Active Shields |
+
+**Client-Gesamt: 23 Tests**
+
+**Projekt-Gesamt: 209 Tests (186 Server + 23 Client)**
+
+---
+
+## Server-Test-Kategorien
 
 ### 1. Singleton-Integritaet (Prio 1)
 
@@ -69,12 +102,17 @@ Unit-Tests fuer die zentrale Canvas-Logik. Kein Redis/PostgreSQL noetig — eige
 - Color-Validierung: < 0 und >= colorCount → null, Randwerte 0 und 31 ok
 - `getPixel`: Gesetzter Pixel mit Metadata, Default-Werte fuer unberuehrte Pixel
 - `getFullCanvas`: Buffer-Laenge, Initial alles Null
-- `resetCanvas`: colorBuffer und metadata geleert
+- `resetCanvas`: colorBuffer und metadata geleert, Dimensionen auf 250x250 zurueckgesetzt (auch von 500x500)
 - `isPaused`/`setPaused`: Toggle
 - `generateSnapshotPng`: PNG-Magic-Bytes (`\x89PNG`)
 - `getConfig`: Gibt Config zurueck
 
-**Mocks:** `db/redis` (alle Funktionen → null/void), `db/pool` (getPool → null)
+**Canvas Growth Tests (14 zusaetzliche Tests):**
+- `getOccupancy`: 0% fuer leeren Canvas, korrekte Zaehlung, 100% fuer vollen Canvas
+- `resize`: Buffer waechst (250→500), alte Pixel bleiben, Metadata bleibt, kein Shrink (Fehler), ungueltige Groesse (Fehler), No-Op bei gleicher Groesse, neue Flaeche ist 0
+- `checkAutoExpand`: Kein Trigger bei <80%, kein Trigger wenn paused, kein Trigger bei Max (1000), Trigger bei ≥80%
+
+**Mocks:** `db/redis` (alle Funktionen → null/void), `db/pool` (getPool → null), `ws/socket` (broadcastCanvasResize → no-op)
 
 ### 3. Payment Service (Prio 3)
 
@@ -153,13 +191,14 @@ Unit-Tests fuer `SeasonService` — Season-Lifecycle. Mocked PostgreSQL Pool.
 
 Supertest-basierte HTTP-Tests gegen gemountete Express-Routes. Alle Services gemockt.
 
-**Canvas Routes (12 Tests):**
+**Canvas Routes (15 Tests):**
 - `GET /api/canvas` → Binary Buffer, Content-Type octet-stream
-- `GET /api/canvas/pixel/:x/:y` → Pixel-Info + Preis, 400 bei Out-of-Bounds
+- `GET /api/canvas/pixel/:x/:y` → Pixel-Info + Preis + Shield-Info, 400 bei Out-of-Bounds
 - `GET /api/canvas/price/:x/:y` → Preis fuer Pixel
 - `GET /api/canvas/config` → Canvas-Config + Palette + Season
-- `POST /api/canvas/pixel` → Placement (200), Paused (503), Invalid Params (400), Invalid Color (400), Payment-Fail (402), Out-of-Bounds (400)
+- `POST /api/canvas/pixel` → Placement (200), Paused (503), Shielded (403), Invalid Params (400), Invalid Color (400), Payment-Fail (402), Out-of-Bounds (400)
 - `GET /api/canvas/pixel/:x/:y/history` → Leere History ohne Pool
+- Shield-Integration: 403 bei Shield, Shield-Info in Pixel-Response
 
 **Wallet Routes (7 Tests):**
 - `POST /api/wallet/connect` → Neues Wallet erstellen, mit Adresse
@@ -173,7 +212,14 @@ Supertest-basierte HTTP-Tests gegen gemountete Express-Routes. Alle Services gem
 - `GET /api/leaderboard/season/:id` → Leer ohne Pool, 400 bei ungueltigem ID
 - `GET /api/stats` → Globale Stats (Placements, Wallets, Spent, Canvas-Size)
 
-**Mocks:** canvasService, paymentService, pricingService, seasonService, broadcastPixelUpdate, walletAuth (pass-through), rateLimit (pass-through)
+**Power-Up Routes (13 Tests):**
+- `GET /api/powerups/catalog` → Katalog mit Shield
+- `POST /api/powerups/purchase` → Kauf (200), Auth (401), Invalid Params (400), Insufficient Balance (402), Unknown Power-Up (400)
+- `GET /api/powerups/inventory` → Inventar, Auth (401)
+- `POST /api/powerups/activate` → Aktivierung (200), Auth (401), Invalid Params (400), Fehler (NOT_YOUR_PIXEL etc.)
+- `GET /api/powerups/shields` → Aktive Shields
+
+**Mocks:** canvasService, paymentService, pricingService, seasonService, powerUpService, broadcastPixelUpdate, walletAuth (pass-through), rateLimit (pass-through)
 
 ### 8. Middleware (Prio 8)
 
@@ -195,18 +241,51 @@ Supertest-basierte HTTP-Tests gegen gemountete Express-Routes. Alle Services gem
 
 Direkte Unit-Tests fuer alle Broadcast-Funktionen. Mock-Server via globalThis.
 
-**No-Op bei null (6 Tests):** Alle 5 Broadcast-Funktionen + getIO sind safe wenn kein Server initialisiert
+**No-Op bei null (7 Tests):** Alle 6 Broadcast-Funktionen + getIO sind safe wenn kein Server initialisiert
 
-**Mit Server (8 Tests):**
+**Mit Server (9 Tests):**
 - `broadcastPixelUpdate` → 5-Byte-Buffer korrekt kodiert (UInt16BE x/y, UInt8 color)
 - `broadcastPixelUpdate` → Max-Koordinaten (249,249,31) korrekt
 - `broadcastUserCount` → engine.clientsCount
 - `broadcastPause` → true/false
 - `broadcastSeasonChange` → Season-Objekt oder null
 - `broadcastCanvasReset` → Event emittiert
+- `broadcastCanvasResize` → width/height Objekt emittiert
 - `getIO` → Server-Referenz
 
 **Mocks:** globalThis.__iotaSocketIO mit mockEmit
+
+### 10. Power-Up Service (Prio 10)
+
+Unit-Tests fuer `PowerUpService` — Shield-Kauf und -Aktivierung. Eigene Service-Instanz pro Test.
+
+**Was wird getestet:**
+- `getCatalog`: Shield vorhanden mit korrekten Daten (Preis 2 IOTA, Dauer 3600s)
+- `getCatalogItem`: Shield per ID, unbekannte ID → undefined
+- `purchase`: Balance-Abzug, unbekanntes Power-Up, Wallet nicht gefunden, Wallet gebannt, insufficient Balance, Payment-Fehler
+- `activateShield`: Pixel shielded + Broadcast, Out-of-Bounds, fremdes Pixel, bereits geshieldet
+- `isPixelShielded`: true/false, Ablauf-Check mit lazy Cleanup
+- `getPixelShield`: Shield-Details oder null
+- `getAllActiveShields`: Alle aktiven, abgelaufene ausgeschlossen
+- `cleanupExpired`: Entfernung + Broadcast, 0 wenn nichts abgelaufen
+- `removeEffect`: Entfernt Shield per effectId
+- `getStats`: activeShields-Zaehler
+
+**Mocks:** `db/pool` (null), `ws/socket` (broadcastShieldActivated/Expired), `canvas.service` (getPixel), `payment` (getWallet, processPayment, isWalletBanned)
+
+### 11. Client: Power-Up Shop (Prio 11)
+
+React-Component-Tests fuer `PowerUpShop.tsx` mit @testing-library/react.
+
+**Was wird getestet:**
+- Render: Nichts bei `visible=false`, Shop-Titel sichtbar
+- Katalog: Shield-Karte mit Name + Preis
+- Buy-Button-States: Disabled ohne Wallet, Disabled bei insufficient Balance
+- Close-Button: Callback
+- Active Shields: Koordinaten-Anzeige
+- Section Header: "Available" sichtbar
+
+**Mocks:** `services/api` (apiRequest → Katalog-Daten)
 
 ## Architektur-Hinweis: globalThis-Pattern
 

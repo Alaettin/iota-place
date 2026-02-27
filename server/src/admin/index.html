@@ -118,6 +118,24 @@
     <button class="btn btn-warning btn-sm" id="pause-btn" onclick="togglePause()">Pause</button>
   </div>
 
+  <!-- Canvas Resize -->
+  <div style="background:#fff;border-radius:10px;border:1px solid rgba(0,0,0,0.06);margin-bottom:24px;padding:16px">
+    <h3 style="font-size:15px;margin:0 0 12px 0">Canvas Size</h3>
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
+      <span style="font-size:13px;color:#4a5568">Current: <strong id="canvas-size-label">250x250</strong></span>
+      <span style="font-size:13px;color:#4a5568">Occupancy: <strong id="occupancy-label">0%</strong></span>
+    </div>
+    <div style="height:8px;background:rgba(0,0,0,0.06);border-radius:4px;margin-bottom:12px;overflow:hidden">
+      <div id="occupancy-bar" style="height:100%;background:#16a34a;border-radius:4px;width:0%;transition:width 0.5s"></div>
+    </div>
+    <div style="display:flex;gap:6px">
+      <button class="btn btn-sm" onclick="resizeCanvas(250)" id="resize-250" style="flex:1;font-size:11px">250x250</button>
+      <button class="btn btn-sm" onclick="resizeCanvas(500)" id="resize-500" style="flex:1;font-size:11px">500x500</button>
+      <button class="btn btn-sm" onclick="resizeCanvas(750)" id="resize-750" style="flex:1;font-size:11px">750x750</button>
+      <button class="btn btn-sm" onclick="resizeCanvas(1000)" id="resize-1000" style="flex:1;font-size:11px">1000x1000</button>
+    </div>
+  </div>
+
   <!-- Season Management -->
   <div style="background:#fff;border-radius:10px;border:1px solid rgba(0,0,0,0.06);margin-bottom:24px;padding:16px">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
@@ -267,6 +285,48 @@
         <div class="stat-label">${s.label}</div>
       </div>
     `).join("");
+
+    // Update canvas resize section
+    $("canvas-size-label").textContent = stats.canvasSize;
+    if (stats.occupancy) {
+      const pct = stats.occupancy.percent;
+      $("occupancy-label").textContent = `${pct}% (${stats.occupancy.filled}/${stats.occupancy.total})`;
+      $("occupancy-bar").style.width = `${pct}%`;
+      $("occupancy-bar").style.background = pct >= 80 ? "#dc2626" : pct >= 60 ? "#d97706" : "#16a34a";
+    }
+
+    // Disable resize buttons that are smaller than current size
+    const currentSize = parseInt(stats.canvasSize);
+    [250, 500, 750, 1000].forEach((s) => {
+      const btn = $(`resize-${s}`);
+      if (btn) {
+        btn.disabled = s <= currentSize;
+        btn.style.opacity = s <= currentSize ? "0.4" : "1";
+        btn.style.cursor = s <= currentSize ? "default" : "pointer";
+        if (s === currentSize) btn.style.fontWeight = "700";
+      }
+    });
+  }
+
+  async function resizeCanvas(size) {
+    if (!confirm(`Resize canvas to ${size}x${size}? Existing pixels will be preserved.`)) return;
+    try {
+      const res = await fetch("/api/admin/canvas/resize", {
+        method: "POST",
+        headers: headers(),
+        body: JSON.stringify({ width: size, height: size }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        alert(`Canvas resized to ${data.canvasSize}`);
+        fetchStats();
+        initCanvas();
+      } else {
+        alert(`Resize failed: ${data.error}`);
+      }
+    } catch (err) {
+      alert("Resize failed: " + err.message);
+    }
   }
 
   function updatePauseUI() {
@@ -947,8 +1007,7 @@
         </div>
       `;
       actions.innerHTML = `
-        <button class="btn btn-danger" onclick="confirmEndSeason(false)">End Season</button>
-        <button class="btn btn-danger" onclick="confirmEndSeason(true)">End Season + Reset Canvas</button>
+        <button class="btn btn-danger" onclick="confirmEndSeason()">End Season</button>
       `;
     } else {
       badge.textContent = "Off-Season";
@@ -1003,43 +1062,36 @@
     }
   }
 
-  async function confirmEndSeason(resetCanvas) {
+  async function confirmEndSeason() {
     const name = currentSeason ? currentSeason.name : "Season";
-    const msg = resetCanvas
-      ? `End "${name}" and RESET THE ENTIRE CANVAS to white?\n\n1. Canvas will be paused\n2. A backup will be created\n3. A PNG snapshot will be saved\n4. The season will end\n5. All pixels will be reset to white\n6. Canvas will resume`
-      : `End "${name}"? A PNG snapshot will be saved. The canvas will NOT be reset.`;
 
     const ok = await showConfirm(
       "End Season",
-      msg,
-      resetCanvas ? "End + Reset Canvas" : "End Season",
+      `End "${name}"?\n\n1. Canvas will be paused\n2. A backup will be created\n3. A PNG snapshot will be saved\n4. The season will end\n5. Canvas will be reset to 250x250\n6. Canvas will resume`,
+      "End Season",
       "btn-danger"
     );
     if (!ok) return;
 
-    if (resetCanvas) {
-      const doubleOk = await showConfirm(
-        "Are you SURE?",
-        "This will delete ALL pixels on the canvas. This cannot be undone!",
-        "Yes, Reset Canvas",
-        "btn-danger"
-      );
-      if (!doubleOk) return;
-    }
+    const doubleOk = await showConfirm(
+      "Are you SURE?",
+      "This will delete ALL pixels and reset the canvas to 250x250. This cannot be undone!",
+      "Yes, End Season",
+      "btn-danger"
+    );
+    if (!doubleOk) return;
 
     try {
       const res = await fetch("/api/admin/season/end", {
         method: "POST",
         headers: headers(),
-        body: JSON.stringify({ resetCanvas }),
+        body: JSON.stringify({}),
       });
       const data = await res.json();
       if (res.ok) {
-        let msg = `Season ended! Snapshot saved.`;
-        if (data.canvasReset) msg += " Canvas has been reset to white.";
-        await showAlert("Season Ended", msg);
+        await showAlert("Season Ended", "Season ended! Snapshot saved. Canvas reset to 250x250.");
         fetchSeason();
-        if (data.canvasReset) refreshCanvas();
+        refreshCanvas();
         fetchStats();
       } else {
         await showAlert("Error", data.error || "Failed to end season");

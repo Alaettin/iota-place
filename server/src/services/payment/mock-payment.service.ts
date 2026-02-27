@@ -98,6 +98,32 @@ export class MockPaymentService implements PaymentService {
     };
   }
 
+  async deductBalance(walletId: string, amount: number, _reason: string): Promise<PaymentResult> {
+    const wallet = this.wallets.get(walletId);
+    if (!wallet) {
+      return { success: false, transactionId: "", amountPaid: 0, newBalance: 0, error: "WALLET_NOT_FOUND" };
+    }
+    if (wallet.isBanned) {
+      return { success: false, transactionId: "", amountPaid: 0, newBalance: wallet.balance, error: "WALLET_BANNED" };
+    }
+    if (wallet.balance < amount) {
+      return { success: false, transactionId: "", amountPaid: 0, newBalance: wallet.balance, error: "INSUFFICIENT_BALANCE" };
+    }
+
+    wallet.balance -= amount;
+    wallet.totalSpent += amount;
+    const txId = crypto.randomUUID();
+
+    updateWalletStatsInDb(walletId, wallet.totalSpent, wallet.pixelCount).catch(() => {});
+
+    return {
+      success: true,
+      transactionId: txId,
+      amountPaid: amount,
+      newBalance: Math.round(wallet.balance * 10000) / 10000,
+    };
+  }
+
   async addFunds(walletId: string, amount: number): Promise<WalletInfo> {
     const wallet = this.wallets.get(walletId);
     if (!wallet) throw new Error("WALLET_NOT_FOUND");

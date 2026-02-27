@@ -12,6 +12,7 @@ async function bootstrap() {
     { mountRoutes: mountCanvasRoutes },
     { mountRoutes: mountWalletRoutes },
     { mountRoutes: mountLeaderboardRoutes },
+    { mountPowerUpRoutes },
     { initSocketServer },
     { initPool },
     { initRedis },
@@ -22,6 +23,7 @@ async function bootstrap() {
     { startBackupService },
     { paymentService },
     { seasonService },
+    { powerUpService },
   ] = await Promise.all([
     import("express"),
     import("http"),
@@ -29,6 +31,7 @@ async function bootstrap() {
     import("./routes/canvas.routes"),
     import("./routes/wallet.routes"),
     import("./routes/leaderboard.routes"),
+    import("./routes/powerup.routes"),
     import("./ws/socket"),
     import("./db/pool"),
     import("./db/redis"),
@@ -39,6 +42,7 @@ async function bootstrap() {
     import("./services/backup.service"),
     import("./services/payment"),
     import("./services/season.service"),
+    import("./services/powerup.service"),
   ]);
 
   const app = express();
@@ -60,6 +64,7 @@ async function bootstrap() {
   mountCanvasRoutes(app);
   mountWalletRoutes(app);
   mountLeaderboardRoutes(app);
+  mountPowerUpRoutes(app);
 
   // Serve client in production
   if (process.env.NODE_ENV === "production") {
@@ -78,8 +83,12 @@ async function bootstrap() {
     await paymentService.loadFromDb();
     await canvasService.loadFromDb();
     await seasonService.loadFromDb();
+    await powerUpService.loadFromDb();
     startFlushService();
   }
+
+  // Cleanup expired power-up effects every 60 seconds
+  setInterval(() => powerUpService.cleanupExpired(), 60000);
 
   // Start admin server on separate port (localhost only)
   startAdminServer();

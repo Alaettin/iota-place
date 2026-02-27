@@ -13,9 +13,11 @@ interface UseSocketOptions {
   onPauseChange?: (paused: boolean) => void;
   onSeasonChange?: (season: SeasonInfo | null) => void;
   onCanvasReset?: () => void;
+  onCanvasResize?: (width: number, height: number) => void;
+  onShieldUpdate?: (x: number, y: number, expiresAt: string, active: boolean) => void;
 }
 
-export function useSocket({ onPixelUpdate, onPauseChange, onSeasonChange, onCanvasReset }: UseSocketOptions) {
+export function useSocket({ onPixelUpdate, onPauseChange, onSeasonChange, onCanvasReset, onCanvasResize, onShieldUpdate }: UseSocketOptions) {
   const socketRef = useRef<Socket | null>(null);
   const [userCount, setUserCount] = useState(0);
   const [connected, setConnected] = useState(false);
@@ -27,6 +29,10 @@ export function useSocket({ onPixelUpdate, onPauseChange, onSeasonChange, onCanv
   onSeasonChangeRef.current = onSeasonChange;
   const onCanvasResetRef = useRef(onCanvasReset);
   onCanvasResetRef.current = onCanvasReset;
+  const onCanvasResizeRef = useRef(onCanvasResize);
+  onCanvasResizeRef.current = onCanvasResize;
+  const onShieldUpdateRef = useRef(onShieldUpdate);
+  onShieldUpdateRef.current = onShieldUpdate;
 
   useEffect(() => {
     const socket = io(window.location.origin, {
@@ -60,6 +66,14 @@ export function useSocket({ onPixelUpdate, onPauseChange, onSeasonChange, onCanv
 
     socket.on("canvas:reset", () => {
       onCanvasResetRef.current?.();
+    });
+
+    socket.on("canvas:resize", ({ width, height }: { width: number; height: number }) => {
+      onCanvasResizeRef.current?.(width, height);
+    });
+
+    socket.on("powerup:shield", ({ x, y, expiresAt, active }: { x: number; y: number; expiresAt?: string; active: boolean }) => {
+      onShieldUpdateRef.current?.(x, y, expiresAt || "", active);
     });
 
     return () => {

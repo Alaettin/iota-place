@@ -198,6 +198,36 @@ export class IotaPaymentService implements PaymentService {
     }
   }
 
+  async deductBalance(walletId: string, amount: number, _reason: string): Promise<PaymentResult> {
+    const wallet = this.wallets.get(walletId);
+    if (!wallet) {
+      return { success: false, transactionId: "", amountPaid: 0, newBalance: 0, error: "WALLET_NOT_FOUND" };
+    }
+    if (wallet.isBanned) {
+      return { success: false, transactionId: "", amountPaid: 0, newBalance: 0, error: "WALLET_BANNED" };
+    }
+
+    // Server-side balance deduction (no on-chain tx needed)
+    // Check on-chain balance first
+    const currentBalance = await this.queryOnChainBalance(wallet.address);
+    if (currentBalance < amount) {
+      return { success: false, transactionId: "", amountPaid: 0, newBalance: currentBalance, error: "INSUFFICIENT_BALANCE" };
+    }
+
+    // Deduct from tracked stats (on-chain balance is read-only here)
+    wallet.totalSpent += amount;
+    const txId = `deduct-${crypto.randomUUID()}`;
+
+    updateWalletStatsInDb(walletId, wallet.totalSpent, wallet.pixelCount).catch(() => {});
+
+    return {
+      success: true,
+      transactionId: txId,
+      amountPaid: amount,
+      newBalance: currentBalance - amount,
+    };
+  }
+
   async addFunds(walletId: string, _amount: number): Promise<WalletInfo> {
     const wallet = this.wallets.get(walletId);
     if (!wallet) throw new Error("WALLET_NOT_FOUND");

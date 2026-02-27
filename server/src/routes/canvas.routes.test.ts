@@ -38,6 +38,15 @@ vi.mock("../ws/socket", () => ({
   broadcastPixelUpdate: vi.fn(),
 }));
 
+const mockIsPixelShielded = vi.fn().mockReturnValue(false);
+const mockGetPixelShield = vi.fn().mockReturnValue(null);
+vi.mock("../services/powerup.service", () => ({
+  powerUpService: {
+    isPixelShielded: (...args: any[]) => mockIsPixelShielded(...args),
+    getPixelShield: (...args: any[]) => mockGetPixelShield(...args),
+  },
+}));
+
 vi.mock("../db/pool", () => ({
   getPool: vi.fn().mockReturnValue(null),
 }));
@@ -226,6 +235,42 @@ describe("Canvas Routes", () => {
       expect(res.status).toBe(200);
       expect(res.body.ok).toBe(true);
       expect(res.body.history).toEqual([]);
+    });
+  });
+
+  describe("Shield integration", () => {
+    it("POST pixel returns 403 when pixel is shielded", async () => {
+      mockIsPixelShielded.mockReturnValue(true);
+      mockGetPixelShield.mockReturnValue({ walletId: "w-owner", expiresAt: "2025-06-01T12:00:00Z" });
+
+      const res = await request(app)
+        .post("/api/canvas/pixel")
+        .set("X-Wallet-Id", "w1")
+        .send({ x: 5, y: 5, color: 3 });
+
+      expect(res.status).toBe(403);
+      expect(res.body.error).toBe("PIXEL_SHIELDED");
+      expect(res.body.shieldedBy).toBe("w-owner");
+    });
+
+    it("GET pixel/:x/:y includes shield info", async () => {
+      mockGetPixel.mockReturnValue({ x: 5, y: 5, color: 1, walletId: "w1", pricePaid: 0.5, overwriteCount: 0 });
+      mockGetPixelShield.mockReturnValue({ walletId: "w1", expiresAt: "2025-06-01T12:00:00Z" });
+
+      const res = await request(app).get("/api/canvas/pixel/5/5");
+      expect(res.status).toBe(200);
+      expect(res.body.shield).not.toBeNull();
+      expect(res.body.shield.walletId).toBe("w1");
+      expect(res.body.shield.expiresAt).toBe("2025-06-01T12:00:00Z");
+    });
+
+    it("GET pixel/:x/:y returns shield null when unshielded", async () => {
+      mockGetPixel.mockReturnValue({ x: 0, y: 0, color: 0, walletId: null, pricePaid: 0, overwriteCount: 0 });
+      mockGetPixelShield.mockReturnValue(null);
+
+      const res = await request(app).get("/api/canvas/pixel/0/0");
+      expect(res.status).toBe(200);
+      expect(res.body.shield).toBeNull();
     });
   });
 });

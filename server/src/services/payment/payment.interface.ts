@@ -34,6 +34,7 @@ export interface PaymentService {
     color: number;
     txDigest?: string;
   }): Promise<PaymentResult>;
+  deductBalance(walletId: string, amount: number, reason: string): Promise<PaymentResult>;
   addFunds(walletId: string, amount: number): Promise<WalletInfo>;
   getAllWallets(): WalletRecord[];
   isWalletBanned(walletId: string): boolean;

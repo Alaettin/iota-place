@@ -4,6 +4,10 @@ import ColorPalette from "./components/ColorPalette";
 import PixelInfo from "./components/PixelInfo";
 import WalletPanel from "./components/WalletPanel";
 import Leaderboard from "./components/Leaderboard";
+import LegalModal from "./components/LegalPages";
+import CookieBanner from "./components/CookieBanner";
+import Footer from "./components/Footer";
+import PowerUpShop from "./components/PowerUpShop";
 import { fetchCanvasBinary, fetchConfig, apiRequest } from "./services/api";
 import { useSocket, SeasonInfo } from "./hooks/useSocket";
 import { useIotaPayment } from "./hooks/useIotaPayment";
@@ -18,8 +22,8 @@ interface WalletInfo {
 
 function App() {
   const [colorData, setColorData] = useState<Uint8Array | null>(null);
-  const [canvasWidth] = useState(250);
-  const [canvasHeight] = useState(250);
+  const [canvasWidth, setCanvasWidth] = useState(250);
+  const [canvasHeight, setCanvasHeight] = useState(250);
   const [selectedColor, setSelectedColor] = useState(5);
   const [selectedPixel, setSelectedPixel] = useState<{ x: number; y: number } | null>(null);
   const [pixelInfo, setPixelInfo] = useState<Pixel | null>(null);
@@ -33,6 +37,14 @@ function App() {
   const [paymentMode, setPaymentMode] = useState<"mock" | "iota">("mock");
   const [collectionAddress, setCollectionAddress] = useState<string>("");
   const [season, setSeason] = useState<SeasonInfo | null>(null);
+  const [legalPage, setLegalPage] = useState<"impressum" | "datenschutz" | "agb" | null>(null);
+  const [showCookieBanner, setShowCookieBanner] = useState(
+    () => localStorage.getItem("cookie-consent") !== "accepted"
+  );
+  const [showShop, setShowShop] = useState(false);
+  const [shieldMode, setShieldMode] = useState<{ inventoryId: number } | null>(null);
+  const [activeShields, setActiveShields] = useState<Array<{ x: number; y: number; expiresAt: string }>>([]);
+  const [pixelShield, setPixelShield] = useState<{ walletId: string; expiresAt: string } | null>(null);
 
   // IOTA payment hook
   const { placePixel: iotaPlacePixel, signing } = useIotaPayment();
@@ -53,29 +65,48 @@ function App() {
     // Reload canvas binary from server after admin reset
     fetchCanvasBinary().then((data) => setColorData(data));
   }, []);
-  const { userCount, connected } = useSocket({ onPixelUpdate: handleRemotePixelUpdate, onPauseChange: handlePauseChange, onSeasonChange: handleSeasonChange, onCanvasReset: handleCanvasReset });
+  const handleCanvasResize = useCallback((width: number, height: number) => {
+    setCanvasWidth(width);
+    setCanvasHeight(height);
+    // Reload canvas binary with new dimensions
+    fetchCanvasBinary().then((data) => setColorData(data));
+  }, []);
+  const handleShieldUpdate = useCallback((x: number, y: number, expiresAt: string, active: boolean) => {
+    setActiveShields((prev) => {
+      if (active) {
+        return [...prev.filter((s) => !(s.x === x && s.y === y)), { x, y, expiresAt }];
+      }
+      return prev.filter((s) => !(s.x === x && s.y === y));
+    });
+  }, []);
+  const { userCount, connected } = useSocket({ onPixelUpdate: handleRemotePixelUpdate, onPauseChange: handlePauseChange, onSeasonChange: handleSeasonChange, onCanvasReset: handleCanvasReset, onCanvasResize: handleCanvasResize, onShieldUpdate: handleShieldUpdate });
 
-  // Load canvas + config on mount
+  // Load canvas + config + active shields on mount
   useEffect(() => {
-    Promise.all([fetchCanvasBinary(), fetchConfig()])
-      .then(([data, { config, season: initialSeason }]) => {
+    Promise.all([fetchCanvasBinary(), fetchConfig(), apiRequest<{ shields: Array<{ x: number; y: number; expiresAt: string }> }>("/api/powerups/shields")])
+      .then(([data, { config, season: initialSeason }, shieldsRes]) => {
+        if (config.width) setCanvasWidth(config.width);
+        if (config.height) setCanvasHeight(config.height);
         setColorData(data);
         setPaymentMode(config.paymentMode);
         if (config.collectionAddress) setCollectionAddress(config.collectionAddress);
         if ((config as any).paused) setPaused(true);
         if (initialSeason) setSeason(initialSeason);
+        if (shieldsRes.ok) setActiveShields(shieldsRes.payload.shields);
         setLoading(false);
       })
       .catch(() => setLoading(false));
   }, []);
 
-  // ESC key deselects pixel
+  // ESC key deselects pixel + cancels shield mode
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         setSelectedPixel(null);
         setPixelInfo(null);
         setNextPrice(null);
+        setPixelShield(null);
+        setShieldMode(null);
       }
     };
     window.addEventListener("keydown", handleKeyDown);
@@ -87,21 +118,43 @@ function App() {
     // Hover is now a no-op — selection happens on click
   }, []);
 
-  // Handle pixel click — selects the pixel and loads info
+  // Handle pixel click — selects the pixel or activates shield
   const handlePixelClick = useCallback(
     async (x: number, y: number) => {
+      // Shield activation mode: try to shield the clicked pixel
+      if (shieldMode) {
+        if (!wallet) return;
+        setError(null);
+        const { ok, payload } = await apiRequest<{ expiresAt: string; error?: string }>(
+          "/api/powerups/activate",
+          {
+            method: "POST",
+            body: JSON.stringify({ inventoryId: shieldMode.inventoryId, targetX: x, targetY: y }),
+            headers: { "X-Wallet-Id": wallet.walletId },
+          }
+        );
+        if (ok) {
+          setActiveShields((prev) => [...prev, { x, y, expiresAt: payload.expiresAt }]);
+          setShieldMode(null);
+        } else {
+          setError(payload.error || "Could not activate shield");
+        }
+        return;
+      }
+
       setSelectedPixel({ x, y });
       setError(null);
 
-      const { ok, payload } = await apiRequest<{ pixel: Pixel; nextPrice: number }>(
+      const { ok, payload } = await apiRequest<{ pixel: Pixel; nextPrice: number; shield: { walletId: string; expiresAt: string } | null }>(
         `/api/canvas/pixel/${x}/${y}`
       );
       if (ok) {
         setPixelInfo(payload.pixel);
         setNextPrice(payload.nextPrice);
+        setPixelShield(payload.shield || null);
       }
     },
-    []
+    [shieldMode, wallet]
   );
 
   // Handle placing a pixel (the actual payment + placement)
@@ -175,6 +228,8 @@ function App() {
         } else {
           if (status === 429) {
             setError("Too fast! Wait a moment before placing more pixels.");
+          } else if (status === 403 || payload.error === "PIXEL_SHIELDED") {
+            setError("This pixel is shielded and cannot be overwritten.");
           } else if (status === 402) {
             setError("Insufficient balance! Use the faucet to get more tokens.");
           } else if (status === 503 || payload.error === "PAUSED") {
@@ -212,6 +267,7 @@ function App() {
     setSelectedPixel(null);
     setPixelInfo(null);
     setNextPrice(null);
+    setPixelShield(null);
   }, []);
 
   if (loading) {
@@ -266,6 +322,23 @@ function App() {
         >
           Leaderboard
         </button>
+        {/* Shop button — disabled for now
+        <button
+          onClick={() => setShowShop((s) => !s)}
+          style={{
+            marginLeft: 8,
+            background: showShop ? "rgba(0,0,0,0.06)" : "transparent",
+            border: "1px solid rgba(0,0,0,0.12)",
+            borderRadius: 6,
+            padding: "4px 10px",
+            color: "#4a5568",
+            fontSize: 12,
+            cursor: "pointer",
+          }}
+        >
+          Shop
+        </button>
+        */}
         {wallet && (
           <span style={{ marginLeft: "auto", marginRight: 16, fontSize: 13, color: "#d97706", fontWeight: 600 }}>
             {wallet.balance.toFixed(2)} IOTA
@@ -294,8 +367,31 @@ function App() {
         </div>
       )}
 
+      {/* Shield mode banner */}
+      {shieldMode && (
+        <div
+          style={{
+            position: "fixed",
+            top: paused ? 80 : 44,
+            left: 0,
+            right: 0,
+            background: "rgba(6,182,212,0.95)",
+            color: "#fff",
+            padding: "8px 0",
+            textAlign: "center",
+            fontSize: 14,
+            fontWeight: 700,
+            zIndex: 99,
+            cursor: "pointer",
+          }}
+          onClick={() => setShieldMode(null)}
+        >
+          Click a pixel you own to shield it (ESC to cancel)
+        </div>
+      )}
+
       {/* Canvas */}
-      <div style={{ paddingTop: paused ? 80 : 44, width: "100%", height: "100%" }}>
+      <div style={{ paddingTop: (paused ? 80 : 44) + (shieldMode ? 36 : 0), width: "100%", height: "100%" }}>
         <Canvas
           colorData={colorData}
           width={canvasWidth}
@@ -305,6 +401,8 @@ function App() {
           onPixelClick={handlePixelClick}
           onPixelHover={handlePixelHover}
           onDeselect={handleDeselect}
+          activeShields={activeShields}
+          shieldMode={!!shieldMode}
         />
       </div>
 
@@ -342,12 +440,29 @@ function App() {
         selectedColor={selectedColor}
         wallet={wallet}
         placing={placing || signing || paused}
+        shield={pixelShield}
         onPlacePixel={handlePlacePixel}
         onDeselect={handleDeselect}
       />
 
       {/* Leaderboard */}
       <Leaderboard visible={showLeaderboard} onClose={() => setShowLeaderboard(false)} season={season} />
+
+      {/* Power-Up Shop */}
+      <PowerUpShop
+        visible={showShop}
+        onClose={() => setShowShop(false)}
+        walletId={wallet?.walletId || null}
+        balance={wallet?.balance || 0}
+        activeShields={activeShields}
+        onPurchase={(_inventoryId, newBalance) => {
+          setWallet((w) => (w ? { ...w, balance: newBalance } : w));
+        }}
+        onActivate={(inventoryId) => {
+          setShieldMode({ inventoryId });
+          setShowShop(false);
+        }}
+      />
 
       {/* Wallet Panel */}
       <WalletPanel
@@ -356,6 +471,16 @@ function App() {
         onConnect={handleWalletConnect}
         onBalanceUpdate={handleBalanceUpdate}
       />
+
+      {/* Legal Footer */}
+      <Footer onLegalPage={setLegalPage} />
+      <LegalModal page={legalPage} onClose={() => setLegalPage(null)} />
+      {showCookieBanner && (
+        <CookieBanner
+          onAccept={() => { localStorage.setItem("cookie-consent", "accepted"); setShowCookieBanner(false); }}
+          onMoreInfo={() => setLegalPage("datenschutz")}
+        />
+      )}
 
     </div>
   );
