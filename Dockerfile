@@ -23,6 +23,7 @@ COPY package*.json ./
 COPY server/package*.json ./server/
 RUN npm ci -w server --omit=dev
 COPY --from=server-build /app/server/dist ./server/dist
+COPY server/src/admin/ ./server/dist/admin/
 COPY --from=client-build /app/client/dist ./server/dist/public
 ENV NODE_ENV=production
 EXPOSE 3001
