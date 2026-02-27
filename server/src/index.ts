@@ -5,6 +5,7 @@ import path from "path";
 import cors from "cors";
 import { mountRoutes as mountCanvasRoutes } from "./routes/canvas.routes";
 import { mountRoutes as mountWalletRoutes } from "./routes/wallet.routes";
+import { mountRoutes as mountLeaderboardRoutes } from "./routes/leaderboard.routes";
 import { initSocketServer } from "./ws/socket";
 import { initPool } from "./db/pool";
 import { initRedis } from "./db/redis";
@@ -30,6 +31,7 @@ initSocketServer(server);
 // Mount routes
 mountCanvasRoutes(app);
 mountWalletRoutes(app);
+mountLeaderboardRoutes(app);
 
 // Serve client in production
 if (process.env.NODE_ENV === "production") {
