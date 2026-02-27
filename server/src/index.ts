@@ -54,8 +54,29 @@ async function bootstrap() {
   // Trust first proxy (nginx/reverse proxy) for correct client IP
   app.set("trust proxy", 1);
 
-  // Security headers
-  app.use(helmet());
+  // Security headers (allow IOTA RPC + wallet connections)
+  app.use(
+    helmet({
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'self'"],
+          scriptSrc: ["'self'"],
+          styleSrc: ["'self'", "'unsafe-inline'"],
+          imgSrc: ["'self'", "data:", "blob:"],
+          connectSrc: [
+            "'self'",
+            "https://api.mainnet.iota.cafe",
+            "https://api.testnet.iota.cafe",
+            "wss:",
+            "ws:",
+          ],
+          fontSrc: ["'self'"],
+          objectSrc: ["'none'"],
+          frameAncestors: ["'none'"],
+        },
+      },
+    })
+  );
 
   app.use(cors({ origin: process.env.CLIENT_URL || "http://localhost:5173" }));
   app.use(express.json());
