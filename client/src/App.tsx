@@ -36,8 +36,9 @@ function App() {
   const [paused, setPaused] = useState(false);
   const [paymentMode, setPaymentMode] = useState<"mock" | "iota">("mock");
   const [collectionAddress, setCollectionAddress] = useState<string>("");
+  const [network, setNetwork] = useState<string>("testnet");
   const [season, setSeason] = useState<SeasonInfo | null>(null);
-  const [legalPage, setLegalPage] = useState<"impressum" | "datenschutz" | "agb" | null>(null);
+  const [legalPage, setLegalPage] = useState<"rules" | "impressum" | "datenschutz" | "agb" | null>(null);
   const [showCookieBanner, setShowCookieBanner] = useState(
     () => localStorage.getItem("cookie-consent") !== "accepted"
   );
@@ -47,7 +48,7 @@ function App() {
   const [pixelShield, setPixelShield] = useState<{ walletId: string; expiresAt: string } | null>(null);
 
   // IOTA payment hook
-  const { placePixel: iotaPlacePixel, signing } = useIotaPayment();
+  const { placePixel: iotaPlacePixel, signing, error: iotaError } = useIotaPayment();
 
   // WebSocket for real-time pixel updates
   const handleRemotePixelUpdate = useCallback((x: number, y: number, color: number) => {
@@ -90,6 +91,7 @@ function App() {
         setColorData(data);
         setPaymentMode(config.paymentMode);
         if (config.collectionAddress) setCollectionAddress(config.collectionAddress);
+        if (config.network) setNetwork(config.network);
         if ((config as any).paused) setPaused(true);
         if (initialSeason) setSeason(initialSeason);
         if (shieldsRes.ok) setActiveShields(shieldsRes.payload.shields);
@@ -130,7 +132,6 @@ function App() {
           {
             method: "POST",
             body: JSON.stringify({ inventoryId: shieldMode.inventoryId, targetX: x, targetY: y }),
-            headers: { "X-Wallet-Id": wallet.walletId },
           }
         );
         if (ok) {
@@ -193,7 +194,7 @@ function App() {
           });
 
           if (!digest) {
-            // User rejected or error (useIotaPayment sets its own error)
+            setError(iotaError || "Transaction rejected or failed");
             return;
           }
           txDigest = digest;
@@ -205,7 +206,6 @@ function App() {
           {
             method: "POST",
             body: JSON.stringify({ x, y, color: selectedColor, txDigest }),
-            headers: { "X-Wallet-Id": wallet.walletId },
           }
         );
 
@@ -231,7 +231,7 @@ function App() {
           } else if (status === 403 || payload.error === "PIXEL_SHIELDED") {
             setError("This pixel is shielded and cannot be overwritten.");
           } else if (status === 402) {
-            setError("Insufficient balance! Use the faucet to get more tokens.");
+            setError(`Payment failed: ${payload.error || "Unknown error"}`);
           } else if (status === 503 || payload.error === "PAUSED") {
             setPaused(true);
             setError("Canvas is paused by admin.");
@@ -249,7 +249,7 @@ function App() {
   // Auto-dismiss error after 3 seconds
   useEffect(() => {
     if (!error) return;
-    const timer = setTimeout(() => setError(null), 3000);
+    const timer = setTimeout(() => setError(null), 10000);
     return () => clearTimeout(timer);
   }, [error]);
 
@@ -272,7 +272,7 @@ function App() {
 
   if (loading) {
     return (
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", color: "#718096" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", color: "#94a3b8" }}>
         Loading canvas...
       </div>
     );
@@ -288,34 +288,35 @@ function App() {
           left: 0,
           right: 0,
           height: 44,
-          background: "rgba(255,255,255,0.97)",
-          backdropFilter: "blur(8px)",
+          background: "rgba(255,255,255,0.85)",
+          backdropFilter: "blur(16px)",
           display: "flex",
           alignItems: "center",
           paddingLeft: 16,
           zIndex: 100,
-          borderBottom: "1px solid rgba(0,0,0,0.08)",
+          borderBottom: "1px solid rgba(0,0,0,0.06)",
+          boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
         }}
       >
-        <span style={{ fontWeight: 700, fontSize: 16, color: "#1a1a2e" }}>IOTA Place</span>
-        <span style={{ marginLeft: 12, fontSize: 12, color: "#a0aec0" }}>{season ? season.name : "Off-Season"}</span>
+        <span style={{ fontWeight: 700, fontSize: 16, background: "linear-gradient(135deg, #06b6d4, #3b82f6)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>IOTA Place</span>
+        <span style={{ marginLeft: 12, fontSize: 12, color: "#64748b" }}>{season ? season.name : "Off-Season"}</span>
         {paymentMode === "iota" && (
-          <span style={{ marginLeft: 8, fontSize: 10, color: "#16a34a", background: "rgba(22,163,74,0.1)", padding: "2px 6px", borderRadius: 4, fontWeight: 600 }}>
+          <span style={{ marginLeft: 8, fontSize: 10, color: "#06b6d4", background: "rgba(6,182,212,0.1)", padding: "2px 6px", borderRadius: 4, fontWeight: 600 }}>
             IOTA
           </span>
         )}
-        <span style={{ marginLeft: 12, fontSize: 11, color: connected ? "#16a34a" : "#dc2626" }}>
+        <span style={{ marginLeft: 12, fontSize: 11, color: connected ? "#16a34a" : "#ef4444" }}>
           {connected ? `${userCount} online` : "reconnecting..."}
         </span>
         <button
           onClick={() => setShowLeaderboard((s) => !s)}
           style={{
             marginLeft: 12,
-            background: showLeaderboard ? "rgba(0,0,0,0.06)" : "transparent",
-            border: "1px solid rgba(0,0,0,0.12)",
+            background: showLeaderboard ? "#f1f5f9" : "transparent",
+            border: "1px solid #e2e8f0",
             borderRadius: 6,
             padding: "4px 10px",
-            color: "#4a5568",
+            color: "#64748b",
             fontSize: 12,
             cursor: "pointer",
           }}
@@ -327,11 +328,11 @@ function App() {
           onClick={() => setShowShop((s) => !s)}
           style={{
             marginLeft: 8,
-            background: showShop ? "rgba(0,0,0,0.06)" : "transparent",
-            border: "1px solid rgba(0,0,0,0.12)",
+            background: showShop ? "#f1f5f9" : "transparent",
+            border: "1px solid #e2e8f0",
             borderRadius: 6,
             padding: "4px 10px",
-            color: "#4a5568",
+            color: "#64748b",
             fontSize: 12,
             cursor: "pointer",
           }}
@@ -354,8 +355,9 @@ function App() {
             top: 44,
             left: 0,
             right: 0,
-            background: "rgba(217,119,6,0.95)",
-            color: "#fff",
+            background: "rgba(217,119,6,0.08)",
+            borderBottom: "1px solid rgba(217,119,6,0.15)",
+            color: "#d97706",
             padding: "8px 0",
             textAlign: "center",
             fontSize: 14,
@@ -375,8 +377,9 @@ function App() {
             top: paused ? 80 : 44,
             left: 0,
             right: 0,
-            background: "rgba(6,182,212,0.95)",
-            color: "#fff",
+            background: "rgba(6,182,212,0.08)",
+            borderBottom: "1px solid rgba(6,182,212,0.15)",
+            color: "#06b6d4",
             padding: "8px 0",
             textAlign: "center",
             fontSize: 14,
@@ -414,18 +417,37 @@ function App() {
             top: 56,
             left: "50%",
             transform: "translateX(-50%)",
-            background: "rgba(220,38,38,0.95)",
-            color: "#fff",
-            padding: "8px 20px",
+            background: "rgba(239,68,68,0.08)",
+            border: "1px solid rgba(239,68,68,0.15)",
+            color: "#ef4444",
+            padding: "8px 12px 8px 20px",
             borderRadius: 8,
             fontSize: 13,
             fontWeight: 600,
             zIndex: 200,
-            cursor: "pointer",
+            backdropFilter: "blur(12px)",
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            maxWidth: "90vw",
           }}
-          onClick={() => setError(null)}
         >
-          {error}
+          <span style={{ cursor: "pointer", flex: 1 }} onClick={() => setError(null)}>{error}</span>
+          <button
+            onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(error); }}
+            style={{
+              background: "rgba(239,68,68,0.1)",
+              border: "1px solid rgba(239,68,68,0.2)",
+              borderRadius: 4,
+              color: "#ef4444",
+              fontSize: 11,
+              padding: "2px 8px",
+              cursor: "pointer",
+              whiteSpace: "nowrap",
+            }}
+          >
+            Copy
+          </button>
         </div>
       )}
 
@@ -468,6 +490,7 @@ function App() {
       <WalletPanel
         wallet={wallet}
         paymentMode={paymentMode}
+        network={network}
         onConnect={handleWalletConnect}
         onBalanceUpdate={handleBalanceUpdate}
       />

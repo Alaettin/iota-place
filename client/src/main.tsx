@@ -15,10 +15,12 @@ const { networkConfig } = createNetworkConfig({
   mainnet: { url: getFullnodeUrl("mainnet") },
 });
 
+const defaultNet = (import.meta.env.VITE_IOTA_NETWORK || "testnet") as "testnet" | "mainnet";
+
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
-      <IotaClientProvider networks={networkConfig} defaultNetwork="testnet">
+      <IotaClientProvider networks={networkConfig} defaultNetwork={defaultNet}>
         <WalletProvider autoConnect>
           <App />
         </WalletProvider>

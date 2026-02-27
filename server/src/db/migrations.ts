@@ -15,6 +15,7 @@ export async function runMigrations(pool: Pool): Promise<void> {
     { name: "003_drop_wallet_fk", fn: migration003 },
     { name: "004_season_stats", fn: migration004 },
     { name: "005_power_ups", fn: migration005 },
+    { name: "006_processed_transactions", fn: migration006 },
   ];
 
   for (const m of migrations) {
@@ -183,4 +184,16 @@ async function migration005(pool: Pool): Promise<void> {
   await pool.query("CREATE INDEX IF NOT EXISTS idx_active_effects_wallet ON active_effects(wallet_id)");
   await pool.query("CREATE INDEX IF NOT EXISTS idx_active_effects_expires ON active_effects(expires_at)");
   await pool.query("CREATE INDEX IF NOT EXISTS idx_wallet_power_ups_wallet ON wallet_power_ups(wallet_id)");
+}
+
+async function migration006(pool: Pool): Promise<void> {
+  // Persist processed transaction digests to prevent replay attacks after restart
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS processed_transactions (
+      tx_digest TEXT PRIMARY KEY,
+      wallet_id TEXT NOT NULL,
+      processed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  await pool.query("CREATE INDEX IF NOT EXISTS idx_pt_processed_at ON processed_transactions(processed_at)");
 }

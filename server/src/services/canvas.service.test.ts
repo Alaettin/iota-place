@@ -26,6 +26,7 @@ const TEST_CONFIG: CanvasConfig = {
   priceFactor: 1.1,
   colorCount: 32,
   paymentMode: "mock",
+  network: "testnet",
 };
 
 describe("CanvasService", () => {
@@ -155,7 +156,7 @@ describe("CanvasService", () => {
 
     it("resets canvas from 500x500 to 250x250", async () => {
       const bigConfig: CanvasConfig = {
-        width: 500, height: 500, basePrice: 0.5, priceFactor: 1.1, colorCount: 32, paymentMode: "mock",
+        width: 500, height: 500, basePrice: 0.5, priceFactor: 1.1, colorCount: 32, paymentMode: "mock", network: "testnet",
       };
       const c = new CanvasService(bigConfig);
       c.setPixel(300, 300, 5, "w", 0);
@@ -166,12 +167,16 @@ describe("CanvasService", () => {
       expect(c.getConfig().width).toBe(250);
       expect(c.getConfig().height).toBe(250);
       expect(c.getFullCanvas().length).toBe(250 * 250);
-      expect(c.getFullCanvas().every((b) => b === 0)).toBe(true);
+      // After reset, only "IOTA" text pixels are non-zero (color 3)
+      const buf = c.getFullCanvas();
+      const nonZero = buf.filter((b) => b !== 0);
+      expect(nonZero.length).toBeGreaterThan(0);
+      expect(nonZero.every((b) => b === 3)).toBe(true); // all text pixels are color 3 (black)
     });
 
     it("is a no-op for dimensions when already 250x250", async () => {
       const c = new CanvasService({
-        width: 250, height: 250, basePrice: 0.5, priceFactor: 1.1, colorCount: 32, paymentMode: "mock",
+        width: 250, height: 250, basePrice: 0.5, priceFactor: 1.1, colorCount: 32, paymentMode: "mock", network: "testnet",
       });
       c.setPixel(10, 10, 3, "w", 0);
       await c.resetCanvas();
@@ -265,6 +270,7 @@ describe("CanvasService", () => {
       priceFactor: 1.1,
       colorCount: 32,
       paymentMode: "mock",
+      network: "testnet",
     };
 
     it("grows buffer from 250 to 500", async () => {
@@ -342,6 +348,7 @@ describe("CanvasService", () => {
       priceFactor: 1.1,
       colorCount: 32,
       paymentMode: "mock",
+      network: "testnet",
     };
 
     it("returns false when occupancy < 80%", () => {

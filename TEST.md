@@ -53,11 +53,11 @@ npm run test:watch
 | `src/routes/leaderboard.routes.test.ts` | Leaderboard Routes | 8 | All-Time, Season, Stats |
 | `src/services/powerup.service.test.ts` | Power-Up Service | 26 | Katalog, Kauf, Shield-Aktivierung, Ablauf, Cleanup, Stats |
 | `src/routes/powerup.routes.test.ts` | Power-Up Routes | 13 | Catalog, Purchase, Inventory, Activate, Shields |
-| `src/middleware/wallet-auth.test.ts` | Wallet-Auth Middleware | 4 | 401/403 Checks, Valid Pass-Through |
-| `src/middleware/rate-limit.test.ts` | Rate-Limit Middleware | 5 | 5-Request-Window, 429, Reset |
+| `src/middleware/wallet-auth.test.ts` | Wallet-Auth Middleware | 7 | Bearer-Token Auth, 401/403 Checks, X-Wallet-Id Fallback rejected, Banned wallet |
+| `src/middleware/rate-limit.test.ts` | Rate-Limit Middleware | 5 | Bearer-Token-based wallet ID, 5-Request-Window, 429, Reset |
 | `src/ws/socket.test.ts` | WebSocket Broadcasts | 16 | Alle Broadcast-Funktionen inkl. Resize, Shield, Binary-Format, No-Op bei null |
 
-**Server-Gesamt: 186 Tests**
+**Server-Gesamt: 198 Tests**
 
 ---
 
@@ -76,7 +76,7 @@ npm run test:watch
 
 **Client-Gesamt: 23 Tests**
 
-**Projekt-Gesamt: 209 Tests (186 Server + 23 Client)**
+**Projekt-Gesamt: 221 Tests (198 Server + 23 Client)**
 
 ---
 
@@ -131,12 +131,13 @@ Unit-Tests fuer `MockPaymentService` — rein in-memory, kein DB-Zugriff.
 
 ### 4. Pricing Service (Prio 4)
 
-Unit-Tests fuer die Preisformel `basePrice * priceFactor^overwriteCount`.
+Unit-Tests fuer die Preisformel `basePrice * priceFactor^n` (n = overwriteCount+1 wenn belegt, sonst 0).
 
 **Was wird getestet:**
-- Basis-Preis (overwrite 0) → 0.5
-- Nach 1 Overwrite → 0.55
-- Nach 10 Overwrites → ~1.2969
+- Unbesetztes Pixel → 0.2 (Basis-Preis)
+- 1. Ueberschreibung (owned, overwriteCount=0) → 0.24
+- 2. Ueberschreibung (overwriteCount=1) → 0.288
+- Nach 10 Overwrites → 0.2 * 1.2^11
 - Rundung auf 4 Dezimalstellen
 - Null-Pixel (out of bounds) → Basis-Preis
 
@@ -223,10 +224,14 @@ Supertest-basierte HTTP-Tests gegen gemountete Express-Routes. Alle Services gem
 
 ### 8. Middleware (Prio 8)
 
-**Wallet-Auth (4 Tests):**
-- Kein X-Wallet-Id Header → 401 WALLET_NOT_CONNECTED
+**Wallet-Auth (7 Tests):**
+- Kein Authorization Header → 401 WALLET_NOT_CONNECTED
+- Ungueltiger Bearer-Token → 401 WALLET_NOT_CONNECTED
 - Unbekanntes Wallet → 401 WALLET_NOT_FOUND
 - Gueltiges Wallet → next() + walletId auf Request gesetzt
+- walletId korrekt aus Token extrahiert
+- X-Wallet-Id Header ohne Bearer → 401 (Fallback entfernt)
+- Gebanntes Wallet → 403 WALLET_BANNED
 
 **Rate-Limit (5 Tests):**
 - Erster Request → 200
@@ -235,7 +240,7 @@ Supertest-basierte HTTP-Tests gegen gemountete Express-Routes. Alle Services gem
 - Verschiedene Wallets → separate Counter
 - Nach Window-Ablauf (10s) → Counter reset
 
-**Mocks:** paymentService.getWallet/isWalletBanned (wallet-auth), keine Mocks (rate-limit nutzt In-Memory-Counter)
+**Mocks:** paymentService.getWallet/isWalletBanned, verifyToken (wallet-auth); verifyToken (rate-limit)
 
 ### 9. WebSocket Broadcasts (Prio 9)
 

@@ -7,6 +7,9 @@ const G = globalThis as any;
 
 export function createPaymentService(): PaymentService {
   const mode = process.env.PAYMENT_MODE || "mock";
+  if (mode !== "iota") {
+    console.warn("[Payment] WARNING: Running in MOCK mode. Set PAYMENT_MODE=iota for production.");
+  }
   switch (mode) {
     case "iota":
       return new IotaPaymentService();

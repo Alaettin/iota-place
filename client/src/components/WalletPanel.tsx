@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { ConnectButton, useCurrentAccount, useDisconnectWallet, useIotaClientQuery } from "@iota/dapp-kit";
-import { apiRequest } from "../services/api";
+import { apiRequest, setAuthToken } from "../services/api";
 
 interface WalletInfo {
   walletId: string;
@@ -12,25 +12,43 @@ interface WalletInfo {
 interface WalletPanelProps {
   wallet: WalletInfo | null;
   paymentMode: "mock" | "iota";
+  network?: string;
   onConnect: (wallet: WalletInfo) => void;
   onBalanceUpdate: (balance: number) => void;
 }
 
-export default function WalletPanel({ wallet, paymentMode, onConnect, onBalanceUpdate }: WalletPanelProps) {
+const panelStyle: React.CSSProperties = {
+  position: "fixed",
+  top: 56,
+  right: 12,
+  background: "rgba(255,255,255,0.85)",
+  backdropFilter: "blur(16px)",
+  padding: 16,
+  borderRadius: 10,
+  width: 260,
+  boxShadow: "0 4px 20px rgba(0,0,0,0.06)",
+  border: "1px solid rgba(0,0,0,0.06)",
+  zIndex: 50,
+};
+
+export default function WalletPanel({ wallet, paymentMode, network, onConnect, onBalanceUpdate }: WalletPanelProps) {
+  const isMainnet = network === "mainnet";
   if (paymentMode === "iota") {
-    return <IotaWalletPanel wallet={wallet} onConnect={onConnect} onBalanceUpdate={onBalanceUpdate} />;
+    return <IotaWalletPanel wallet={wallet} isMainnet={isMainnet} onConnect={onConnect} onBalanceUpdate={onBalanceUpdate} />;
   }
-  return <MockWalletPanel wallet={wallet} onConnect={onConnect} onBalanceUpdate={onBalanceUpdate} />;
+  return <MockWalletPanel wallet={wallet} isMainnet={isMainnet} onConnect={onConnect} onBalanceUpdate={onBalanceUpdate} />;
 }
 
 // ─── IOTA Mode ──────────────────────────────────────────────────
 
 function IotaWalletPanel({
   wallet,
+  isMainnet,
   onConnect,
   onBalanceUpdate,
 }: {
   wallet: WalletInfo | null;
+  isMainnet: boolean;
   onConnect: (wallet: WalletInfo) => void;
   onBalanceUpdate: (balance: number) => void;
 }) {
@@ -49,12 +67,14 @@ function IotaWalletPanel({
     if (!account?.address) return;
     const address = account.address;
 
-    apiRequest<{ wallet: WalletInfo }>("/api/wallet/connect", {
+    apiRequest<{ wallet: WalletInfo; token: string }>("/api/wallet/connect", {
       method: "POST",
       body: JSON.stringify({ address, displayName: address.slice(0, 10) }),
     }).then(({ ok, payload }) => {
       if (ok) {
-        localStorage.setItem("iota-place-wallet", JSON.stringify(payload.wallet));
+        setAuthToken(payload.token);
+        sessionStorage.setItem("iota-place-token", payload.token);
+        sessionStorage.setItem("iota-place-wallet", JSON.stringify(payload.wallet));
         onConnect(payload.wallet);
       }
     });
@@ -72,36 +92,23 @@ function IotaWalletPanel({
     if (!wallet) return;
     await apiRequest<{ wallet: WalletInfo }>("/api/wallet/faucet", {
       method: "POST",
-      headers: { "X-Wallet-Id": wallet.walletId },
     });
     // Balance will auto-refresh via refetchInterval
   }, [wallet]);
 
   const handleDisconnect = useCallback(() => {
-    localStorage.removeItem("iota-place-wallet");
+    sessionStorage.removeItem("iota-place-token");
+    sessionStorage.removeItem("iota-place-wallet");
+    setAuthToken(null);
     disconnect();
     onConnect(null as unknown as WalletInfo);
   }, [disconnect, onConnect]);
-
-  const panelStyle: React.CSSProperties = {
-    position: "fixed",
-    top: 56,
-    right: 12,
-    background: "rgba(255,255,255,0.95)",
-    backdropFilter: "blur(8px)",
-    padding: 16,
-    borderRadius: 10,
-    width: 260,
-    boxShadow: "0 2px 12px rgba(0,0,0,0.08)",
-    border: "1px solid rgba(0,0,0,0.08)",
-    zIndex: 50,
-  };
 
   // Not connected — show dapp-kit ConnectButton
   if (!account) {
     return (
       <div style={panelStyle}>
-        <div style={{ fontSize: 14, fontWeight: 700, color: "#1a1a2e", marginBottom: 12 }}>
+        <div style={{ fontSize: 14, fontWeight: 700, color: "#0f172a", marginBottom: 12 }}>
           Connect IOTA Wallet
         </div>
         <ConnectButton />
@@ -113,18 +120,18 @@ function IotaWalletPanel({
   return (
     <div style={panelStyle}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-        <span style={{ fontSize: 14, fontWeight: 700, color: "#1a1a2e" }}>
+        <span style={{ fontSize: 14, fontWeight: 700, color: "#0f172a" }}>
           {wallet?.displayName || account.address.slice(0, 10)}
         </span>
         <button
           onClick={handleDisconnect}
-          style={{ background: "none", border: "none", color: "#a0aec0", fontSize: 11, cursor: "pointer" }}
+          style={{ background: "none", border: "none", color: "#94a3b8", fontSize: 11, cursor: "pointer" }}
         >
           Disconnect
         </button>
       </div>
 
-      <div style={{ fontSize: 12, color: "#a0aec0", marginBottom: 8, wordBreak: "break-all" }}>
+      <div style={{ fontSize: 12, color: "#94a3b8", marginBottom: 8, wordBreak: "break-all" }}>
         {account.address.slice(0, 20)}...
       </div>
 
@@ -133,68 +140,81 @@ function IotaWalletPanel({
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          background: "rgba(0,0,0,0.03)",
+          background: "#f1f5f9",
           padding: "8px 10px",
           borderRadius: 6,
           marginBottom: 10,
         }}
       >
-        <span style={{ fontSize: 13, color: "#718096" }}>Balance</span>
+        <span style={{ fontSize: 13, color: "#64748b" }}>Balance</span>
         <span style={{ fontSize: 16, fontWeight: 700, color: "#d97706" }}>
           {wallet ? wallet.balance.toFixed(2) : "..."} IOTA
         </span>
       </div>
 
-      <button
-        onClick={handleFaucet}
-        style={{
-          width: "100%",
-          padding: "7px 0",
-          background: "rgba(22,163,74,0.08)",
-          color: "#16a34a",
-          border: "1px solid rgba(22,163,74,0.2)",
-          borderRadius: 6,
-          fontSize: 12,
-          fontWeight: 600,
-          cursor: "pointer",
-        }}
-      >
-        + Request Testnet Tokens
-      </button>
+      {!isMainnet && (
+        <button
+          onClick={handleFaucet}
+          style={{
+            width: "100%",
+            padding: "7px 0",
+            background: "rgba(22,163,74,0.06)",
+            color: "#16a34a",
+            border: "1px solid rgba(22,163,74,0.15)",
+            borderRadius: 6,
+            fontSize: 12,
+            fontWeight: 600,
+            cursor: "pointer",
+          }}
+        >
+          + Request Testnet Tokens
+        </button>
+      )}
     </div>
   );
 }
 
-// ─── Mock Mode (unchanged) ──────────────────────────────────────
+// ─── Mock Mode ──────────────────────────────────────────────────
 
 function MockWalletPanel({
   wallet,
+  isMainnet,
   onConnect,
   onBalanceUpdate,
 }: {
   wallet: WalletInfo | null;
+  isMainnet: boolean;
   onConnect: (wallet: WalletInfo) => void;
   onBalanceUpdate: (balance: number) => void;
 }) {
   const [connecting, setConnecting] = useState(false);
   const [displayName, setDisplayName] = useState("");
 
-  // Auto-reconnect on mount
+  // Auto-reconnect on mount from sessionStorage
   useEffect(() => {
-    const saved = localStorage.getItem("iota-place-wallet");
-    if (saved) {
+    const token = sessionStorage.getItem("iota-place-token");
+    const saved = sessionStorage.getItem("iota-place-wallet");
+    if (token && saved) {
       try {
-        const parsed = JSON.parse(saved) as WalletInfo;
-        fetch("/api/wallet/me", {
-          headers: { "X-Wallet-Id": parsed.walletId },
-        })
-          .then((r) => r.json())
-          .then((data) => {
-            if (data.ok) onConnect(data.wallet);
+        setAuthToken(token);
+        apiRequest<{ ok: boolean; wallet: WalletInfo }>("/api/wallet/me")
+          .then(({ ok, payload }) => {
+            if (ok) onConnect(payload.wallet);
+            else {
+              sessionStorage.removeItem("iota-place-token");
+              sessionStorage.removeItem("iota-place-wallet");
+              setAuthToken(null);
+            }
           })
-          .catch(() => localStorage.removeItem("iota-place-wallet"));
+          .catch(() => {
+            sessionStorage.removeItem("iota-place-token");
+            sessionStorage.removeItem("iota-place-wallet");
+            setAuthToken(null);
+          });
       } catch {
-        localStorage.removeItem("iota-place-wallet");
+        sessionStorage.removeItem("iota-place-token");
+        sessionStorage.removeItem("iota-place-wallet");
+        setAuthToken(null);
       }
     }
   }, [onConnect]);
@@ -202,12 +222,14 @@ function MockWalletPanel({
   const handleConnect = useCallback(async () => {
     setConnecting(true);
     try {
-      const { ok, payload } = await apiRequest<{ wallet: WalletInfo }>("/api/wallet/connect", {
+      const { ok, payload } = await apiRequest<{ wallet: WalletInfo; token: string }>("/api/wallet/connect", {
         method: "POST",
         body: JSON.stringify({ displayName: displayName || undefined }),
       });
       if (ok) {
-        localStorage.setItem("iota-place-wallet", JSON.stringify(payload.wallet));
+        setAuthToken(payload.token);
+        sessionStorage.setItem("iota-place-token", payload.token);
+        sessionStorage.setItem("iota-place-wallet", JSON.stringify(payload.wallet));
         onConnect(payload.wallet);
       }
     } finally {
@@ -219,7 +241,6 @@ function MockWalletPanel({
     if (!wallet) return;
     const { ok, payload } = await apiRequest<{ wallet: WalletInfo }>("/api/wallet/faucet", {
       method: "POST",
-      headers: { "X-Wallet-Id": wallet.walletId },
     });
     if (ok) {
       onBalanceUpdate(payload.wallet.balance);
@@ -227,28 +248,16 @@ function MockWalletPanel({
   }, [wallet, onBalanceUpdate]);
 
   const handleDisconnect = useCallback(() => {
-    localStorage.removeItem("iota-place-wallet");
+    sessionStorage.removeItem("iota-place-token");
+    sessionStorage.removeItem("iota-place-wallet");
+    setAuthToken(null);
     onConnect(null as unknown as WalletInfo);
   }, [onConnect]);
-
-  const panelStyle: React.CSSProperties = {
-    position: "fixed",
-    top: 56,
-    right: 12,
-    background: "rgba(255,255,255,0.95)",
-    backdropFilter: "blur(8px)",
-    padding: 16,
-    borderRadius: 10,
-    width: 240,
-    boxShadow: "0 2px 12px rgba(0,0,0,0.08)",
-    border: "1px solid rgba(0,0,0,0.08)",
-    zIndex: 50,
-  };
 
   if (!wallet) {
     return (
       <div style={panelStyle}>
-        <div style={{ fontSize: 14, fontWeight: 700, color: "#1a1a2e", marginBottom: 12 }}>
+        <div style={{ fontSize: 14, fontWeight: 700, color: "#0f172a", marginBottom: 12 }}>
           Connect Wallet
         </div>
         <input
@@ -259,10 +268,10 @@ function MockWalletPanel({
           style={{
             width: "100%",
             padding: "8px 10px",
-            background: "rgba(0,0,0,0.04)",
-            border: "1px solid rgba(0,0,0,0.12)",
+            background: "#f1f5f9",
+            border: "1px solid #e2e8f0",
             borderRadius: 6,
-            color: "#1a1a2e",
+            color: "#0f172a",
             fontSize: 13,
             marginBottom: 10,
             outline: "none",
@@ -274,7 +283,7 @@ function MockWalletPanel({
           style={{
             width: "100%",
             padding: "8px 0",
-            background: "#3b82f6",
+            background: "linear-gradient(135deg, #06b6d4, #3b82f6)",
             color: "#fff",
             border: "none",
             borderRadius: 6,
@@ -293,16 +302,16 @@ function MockWalletPanel({
   return (
     <div style={panelStyle}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-        <span style={{ fontSize: 14, fontWeight: 700, color: "#1a1a2e" }}>{wallet.displayName}</span>
+        <span style={{ fontSize: 14, fontWeight: 700, color: "#0f172a" }}>{wallet.displayName}</span>
         <button
           onClick={handleDisconnect}
-          style={{ background: "none", border: "none", color: "#a0aec0", fontSize: 11, cursor: "pointer" }}
+          style={{ background: "none", border: "none", color: "#94a3b8", fontSize: 11, cursor: "pointer" }}
         >
           Disconnect
         </button>
       </div>
 
-      <div style={{ fontSize: 12, color: "#a0aec0", marginBottom: 8, wordBreak: "break-all" }}>
+      <div style={{ fontSize: 12, color: "#94a3b8", marginBottom: 8, wordBreak: "break-all" }}>
         {wallet.address.slice(0, 20)}...
       </div>
 
@@ -311,34 +320,36 @@ function MockWalletPanel({
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          background: "rgba(0,0,0,0.03)",
+          background: "#f1f5f9",
           padding: "8px 10px",
           borderRadius: 6,
           marginBottom: 10,
         }}
       >
-        <span style={{ fontSize: 13, color: "#718096" }}>Balance</span>
+        <span style={{ fontSize: 13, color: "#64748b" }}>Balance</span>
         <span style={{ fontSize: 16, fontWeight: 700, color: "#d97706" }}>
           {wallet.balance.toFixed(2)} IOTA
         </span>
       </div>
 
-      <button
-        onClick={handleFaucet}
-        style={{
-          width: "100%",
-          padding: "7px 0",
-          background: "rgba(22,163,74,0.08)",
-          color: "#16a34a",
-          border: "1px solid rgba(22,163,74,0.2)",
-          borderRadius: 6,
-          fontSize: 12,
-          fontWeight: 600,
-          cursor: "pointer",
-        }}
-      >
-        + Get Test Tokens (50 IOTA)
-      </button>
+      {!isMainnet && (
+        <button
+          onClick={handleFaucet}
+          style={{
+            width: "100%",
+            padding: "7px 0",
+            background: "rgba(22,163,74,0.06)",
+            color: "#16a34a",
+            border: "1px solid rgba(22,163,74,0.15)",
+            borderRadius: 6,
+            fontSize: 12,
+            fontWeight: 600,
+            cursor: "pointer",
+          }}
+        >
+          + Get Test Tokens (50 IOTA)
+        </button>
+      )}
     </div>
   );
 }

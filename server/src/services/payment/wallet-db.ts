@@ -78,3 +78,41 @@ export async function loadWalletsFromDb(): Promise<{
 
   return { wallets, addressIndex };
 }
+
+/**
+ * Load all processed transaction digests from DB (for replay protection after restart).
+ */
+export async function loadProcessedTransactions(): Promise<Set<string>> {
+  const digests = new Set<string>();
+  const pool = getPool();
+  if (!pool) return digests;
+
+  try {
+    const { rows } = await pool.query("SELECT tx_digest FROM processed_transactions");
+    for (const row of rows) {
+      digests.add(row.tx_digest);
+    }
+    console.log(`[WalletDB] Loaded ${digests.size} processed transactions from DB`);
+  } catch (err) {
+    console.warn("[WalletDB] Failed to load processed transactions:", (err as Error).message);
+  }
+
+  return digests;
+}
+
+/**
+ * Persist a processed transaction digest to DB (fire-and-forget).
+ */
+export async function persistProcessedTransaction(txDigest: string, walletId: string): Promise<void> {
+  const pool = getPool();
+  if (!pool) return;
+
+  try {
+    await pool.query(
+      "INSERT INTO processed_transactions (tx_digest, wallet_id) VALUES ($1, $2) ON CONFLICT (tx_digest) DO NOTHING",
+      [txDigest, walletId]
+    );
+  } catch (err) {
+    console.error("[WalletDB] Failed to persist transaction:", (err as Error).message);
+  }
+}

@@ -21,7 +21,6 @@ export function mountRoutes(router: Router): void {
         rank: i + 1,
         walletId: w.id,
         displayName: w.displayName,
-        address: w.address,
         score: type === "spent" ? Math.round(w.totalSpent * 10000) / 10000 : w.pixelCount,
       }));
 
@@ -42,23 +41,22 @@ export function mountRoutes(router: Router): void {
 
       const type = (req.query.type as string) === "spent" ? "spent" : "pixels";
       const limit = Math.min(parseInt(req.query.limit as string) || 20, 100);
-      const orderCol = type === "spent" ? "wss.total_spent" : "wss.pixel_count";
 
-      const { rows } = await pool.query(`
-        SELECT wss.wallet_id, wss.total_spent, wss.pixel_count,
-               w.display_name, w.address
-        FROM wallet_season_stats wss
-        LEFT JOIN wallets w ON w.id = wss.wallet_id
-        WHERE wss.season_id = $1
-        ORDER BY ${orderCol} DESC
-        LIMIT $2
-      `, [seasonId, limit]);
+      // Use separate queries instead of string interpolation for ORDER BY
+      const sql = type === "spent"
+        ? `SELECT wss.wallet_id, wss.total_spent, wss.pixel_count, w.display_name
+           FROM wallet_season_stats wss LEFT JOIN wallets w ON w.id = wss.wallet_id
+           WHERE wss.season_id = $1 ORDER BY wss.total_spent DESC LIMIT $2`
+        : `SELECT wss.wallet_id, wss.total_spent, wss.pixel_count, w.display_name
+           FROM wallet_season_stats wss LEFT JOIN wallets w ON w.id = wss.wallet_id
+           WHERE wss.season_id = $1 ORDER BY wss.pixel_count DESC LIMIT $2`;
+
+      const { rows } = await pool.query(sql, [seasonId, limit]);
 
       const leaderboard = rows.map((r: any, i: number) => ({
         rank: i + 1,
         walletId: r.wallet_id,
         displayName: r.display_name || "Unknown",
-        address: r.address || "",
         score: type === "spent"
           ? Math.round(parseFloat(r.total_spent) * 10000) / 10000
           : r.pixel_count,

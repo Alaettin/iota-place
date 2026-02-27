@@ -5,9 +5,11 @@
 }
 
 body {
-  background: #f0f2f5;
-  color: #1a1a2e;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: #f8f9fc;
+  color: #0f172a;
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   overflow: hidden;
   width: 100vw;
   height: 100vh;
@@ -16,4 +18,26 @@ body {
 #root {
   width: 100%;
   height: 100%;
+}
+
+::selection {
+  background: rgba(6, 182, 212, 0.2);
+  color: #0f172a;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.18);
 }

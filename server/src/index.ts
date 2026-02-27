@@ -9,6 +9,7 @@ async function bootstrap() {
     { default: express },
     http,
     { default: cors },
+    { default: helmet },
     { mountRoutes: mountCanvasRoutes },
     { mountRoutes: mountWalletRoutes },
     { mountRoutes: mountLeaderboardRoutes },
@@ -28,6 +29,7 @@ async function bootstrap() {
     import("express"),
     import("http"),
     import("cors"),
+    import("helmet"),
     import("./routes/canvas.routes"),
     import("./routes/wallet.routes"),
     import("./routes/leaderboard.routes"),
@@ -48,6 +50,12 @@ async function bootstrap() {
   const app = express();
   const server = http.createServer(app);
   const PORT = parseInt(process.env.PORT || "3001", 10);
+
+  // Trust first proxy (nginx/reverse proxy) for correct client IP
+  app.set("trust proxy", 1);
+
+  // Security headers
+  app.use(helmet());
 
   app.use(cors({ origin: process.env.CLIENT_URL || "http://localhost:5173" }));
   app.use(express.json());

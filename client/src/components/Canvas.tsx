@@ -87,7 +87,7 @@ export default function Canvas({ colorData, width, height, selectedColor, select
       const { x, y } = selectedPixel;
       // Outer border (dark)
       const lw = Math.max(2 / zoom, 0.15);
-      ctx.strokeStyle = shieldMode ? "#06b6d4" : "#1a1a2e";
+      ctx.strokeStyle = shieldMode ? "#06b6d4" : "#06b6d4";
       ctx.lineWidth = lw;
       ctx.strokeRect(x - lw, y - lw, 1 + lw * 2, 1 + lw * 2);
       // Inner border (white for contrast)
@@ -221,7 +221,7 @@ export default function Canvas({ colorData, width, height, selectedColor, select
         height: "100%",
         overflow: "hidden",
         cursor: isDragging.current ? "grabbing" : "crosshair",
-        background: "#e5e7eb",
+        background: "#eef1f6",
       }}
       onWheel={handleWheel}
       onMouseDown={handleMouseDown}
@@ -257,14 +257,15 @@ export default function Canvas({ colorData, width, height, selectedColor, select
           display: "flex",
           alignItems: "center",
           gap: 8,
-          background: "rgba(255,255,255,0.9)",
-          backdropFilter: "blur(4px)",
+          background: "rgba(255,255,255,0.85)",
+          backdropFilter: "blur(16px)",
           padding: "6px 12px",
           borderRadius: 6,
           fontSize: 13,
-          color: "#4a5568",
+          color: "#64748b",
           zIndex: 10,
-          border: "1px solid rgba(0,0,0,0.08)",
+          border: "1px solid rgba(0,0,0,0.06)",
+          boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
         }}
       >
         <div
@@ -272,7 +273,7 @@ export default function Canvas({ colorData, width, height, selectedColor, select
             width: 16,
             height: 16,
             background: COLOR_PALETTE[selectedColor],
-            border: "2px solid #1a1a2e",
+            border: "2px solid #0f172a",
             borderRadius: 3,
           }}
         />
@@ -280,12 +281,12 @@ export default function Canvas({ colorData, width, height, selectedColor, select
         <button
           onClick={centerCanvas}
           style={{
-            background: "rgba(0,0,0,0.06)",
-            border: "1px solid rgba(0,0,0,0.12)",
+            background: "#f1f5f9",
+            border: "1px solid #e2e8f0",
             borderRadius: 4,
             padding: "2px 8px",
             fontSize: 14,
-            color: "#4a5568",
+            color: "#64748b",
             cursor: "pointer",
             lineHeight: 1,
           }}

@@ -229,7 +229,90 @@ export class CanvasService {
       await redis.del("canvas:dirty");
     }
 
+    // Draw "IOTA" text in center
+    this.drawIotaText();
+
     console.log(`[Canvas] Full reset complete (${defaultW}x${defaultH})`);
+  }
+
+  // Draw "IOTA" as pixel-art text centered on the canvas
+  private drawIotaText(): void {
+    const COLOR = 3; // #222222 (black)
+
+    // 5x7 pixel font bitmaps (1 = filled, 0 = empty)
+    const letters: { width: number; bitmap: number[][] }[] = [
+      { // I (3 wide)
+        width: 3,
+        bitmap: [
+          [1,1,1],
+          [0,1,0],
+          [0,1,0],
+          [0,1,0],
+          [0,1,0],
+          [0,1,0],
+          [1,1,1],
+        ],
+      },
+      { // O (5 wide)
+        width: 5,
+        bitmap: [
+          [0,1,1,1,0],
+          [1,0,0,0,1],
+          [1,0,0,0,1],
+          [1,0,0,0,1],
+          [1,0,0,0,1],
+          [1,0,0,0,1],
+          [0,1,1,1,0],
+        ],
+      },
+      { // T (5 wide)
+        width: 5,
+        bitmap: [
+          [1,1,1,1,1],
+          [0,0,1,0,0],
+          [0,0,1,0,0],
+          [0,0,1,0,0],
+          [0,0,1,0,0],
+          [0,0,1,0,0],
+          [0,0,1,0,0],
+        ],
+      },
+      { // A (5 wide)
+        width: 5,
+        bitmap: [
+          [0,1,1,1,0],
+          [1,0,0,0,1],
+          [1,0,0,0,1],
+          [1,1,1,1,1],
+          [1,0,0,0,1],
+          [1,0,0,0,1],
+          [1,0,0,0,1],
+        ],
+      },
+    ];
+
+    const SPACING = 1;
+    const HEIGHT = 7;
+    const totalWidth = letters.reduce((sum, l) => sum + l.width, 0) + SPACING * (letters.length - 1);
+
+    const startX = Math.floor(this.config.width / 2 - totalWidth / 2);
+    const startY = Math.floor(this.config.height / 2 - HEIGHT / 2);
+
+    let cursorX = startX;
+    for (const letter of letters) {
+      for (let row = 0; row < HEIGHT; row++) {
+        for (let col = 0; col < letter.width; col++) {
+          if (letter.bitmap[row][col]) {
+            const x = cursorX + col;
+            const y = startY + row;
+            if (this.inBounds(x, y)) {
+              this.colorBuffer[y * this.config.width + x] = COLOR;
+            }
+          }
+        }
+      }
+      cursorX += letter.width + SPACING;
+    }
   }
 
   // Generate PNG snapshot of current canvas state

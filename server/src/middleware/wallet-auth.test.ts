@@ -19,6 +19,11 @@ vi.mock("../services/payment/mock-payment.service", () => ({
   MockPaymentService: class MockPaymentService {},
 }));
 
+const mockVerifyToken = vi.fn();
+vi.mock("../services/auth-token", () => ({
+  verifyToken: (...args: any[]) => mockVerifyToken(...args),
+}));
+
 import { walletAuth } from "./wallet-auth";
 
 function createApp() {
@@ -38,29 +43,42 @@ describe("walletAuth Middleware", () => {
     app = createApp();
   });
 
-  it("returns 401 when X-Wallet-Id header is missing", async () => {
+  it("returns 401 when no Authorization header is provided", async () => {
     const res = await request(app).get("/test");
     expect(res.status).toBe(401);
     expect(res.body.error).toBe("WALLET_NOT_CONNECTED");
   });
 
+  it("returns 401 when Bearer token is invalid", async () => {
+    mockVerifyToken.mockReturnValue(null);
+
+    const res = await request(app)
+      .get("/test")
+      .set("Authorization", "Bearer invalid-token");
+
+    expect(res.status).toBe(401);
+    expect(res.body.error).toBe("WALLET_NOT_CONNECTED");
+  });
+
   it("returns 401 when wallet is not found", async () => {
+    mockVerifyToken.mockReturnValue("unknown-wallet");
     mockGetWallet.mockResolvedValue(null);
 
     const res = await request(app)
       .get("/test")
-      .set("X-Wallet-Id", "unknown-wallet");
+      .set("Authorization", "Bearer valid-token");
 
     expect(res.status).toBe(401);
     expect(res.body.error).toBe("WALLET_NOT_FOUND");
   });
 
   it("passes through for valid wallet", async () => {
+    mockVerifyToken.mockReturnValue("w1");
     mockGetWallet.mockResolvedValue({ id: "w1", address: "0x123", balance: 100 });
 
     const res = await request(app)
       .get("/test")
-      .set("X-Wallet-Id", "w1");
+      .set("Authorization", "Bearer valid-token");
 
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);
@@ -68,12 +86,36 @@ describe("walletAuth Middleware", () => {
   });
 
   it("sets walletId on request object", async () => {
+    mockVerifyToken.mockReturnValue("wallet-abc");
     mockGetWallet.mockResolvedValue({ id: "wallet-abc", address: "0x", balance: 50 });
 
     const res = await request(app)
       .get("/test")
-      .set("X-Wallet-Id", "wallet-abc");
+      .set("Authorization", "Bearer valid-token");
 
     expect(res.body.walletId).toBe("wallet-abc");
+  });
+
+  it("returns 401 when X-Wallet-Id header is sent without Bearer token", async () => {
+    // X-Wallet-Id fallback was removed — must use Bearer token
+    const res = await request(app)
+      .get("/test")
+      .set("X-Wallet-Id", "w1");
+
+    expect(res.status).toBe(401);
+    expect(res.body.error).toBe("WALLET_NOT_CONNECTED");
+  });
+
+  it("returns 403 when wallet is banned", async () => {
+    mockVerifyToken.mockReturnValue("banned-wallet");
+    mockGetWallet.mockResolvedValue({ id: "banned-wallet", address: "0x", balance: 100 });
+    mockIsWalletBanned.mockReturnValue(true);
+
+    const res = await request(app)
+      .get("/test")
+      .set("Authorization", "Bearer valid-token");
+
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBe("WALLET_BANNED");
   });
 });

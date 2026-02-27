@@ -47,23 +47,23 @@ export default function Leaderboard({ visible, onClose, season }: LeaderboardPro
         position: "fixed",
         top: 56,
         left: 12,
-        background: "rgba(255,255,255,0.95)",
-        backdropFilter: "blur(8px)",
+        background: "rgba(255,255,255,0.85)",
+        backdropFilter: "blur(16px)",
         padding: 16,
         borderRadius: 10,
         width: 300,
         maxHeight: "calc(100vh - 120px)",
         overflowY: "auto",
-        boxShadow: "0 2px 16px rgba(0,0,0,0.08)",
-        border: "1px solid rgba(0,0,0,0.08)",
+        boxShadow: "0 4px 20px rgba(0,0,0,0.06)",
+        border: "1px solid rgba(0,0,0,0.06)",
         zIndex: 150,
       }}
     >
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-        <span style={{ fontWeight: 700, fontSize: 15, color: "#1a1a2e" }}>Leaderboard</span>
+        <span style={{ fontWeight: 700, fontSize: 15, color: "#0f172a" }}>Leaderboard</span>
         <button
           onClick={onClose}
-          style={{ background: "none", border: "none", color: "#a0aec0", fontSize: 18, cursor: "pointer" }}
+          style={{ background: "none", border: "none", color: "#94a3b8", fontSize: 18, cursor: "pointer" }}
         >
           x
         </button>
@@ -77,10 +77,10 @@ export default function Leaderboard({ visible, onClose, season }: LeaderboardPro
             style={{
               flex: 1,
               padding: "5px 0",
-              background: scope === "alltime" ? "rgba(0,0,0,0.06)" : "transparent",
-              border: "1px solid rgba(0,0,0,0.1)",
+              background: scope === "alltime" ? "#f1f5f9" : "transparent",
+              border: `1px solid ${scope === "alltime" ? "#e2e8f0" : "#e2e8f0"}`,
               borderRadius: 6,
-              color: scope === "alltime" ? "#1a1a2e" : "#a0aec0",
+              color: scope === "alltime" ? "#0f172a" : "#94a3b8",
               fontSize: 11,
               fontWeight: 600,
               cursor: "pointer",
@@ -93,10 +93,10 @@ export default function Leaderboard({ visible, onClose, season }: LeaderboardPro
             style={{
               flex: 1,
               padding: "5px 0",
-              background: scope === "season" ? "rgba(22,163,74,0.1)" : "transparent",
-              border: `1px solid ${scope === "season" ? "rgba(22,163,74,0.3)" : "rgba(0,0,0,0.1)"}`,
+              background: scope === "season" ? "rgba(22,163,74,0.06)" : "transparent",
+              border: `1px solid ${scope === "season" ? "rgba(22,163,74,0.2)" : "#e2e8f0"}`,
               borderRadius: 6,
-              color: scope === "season" ? "#16a34a" : "#a0aec0",
+              color: scope === "season" ? "#16a34a" : "#94a3b8",
               fontSize: 11,
               fontWeight: 600,
               cursor: "pointer",
@@ -116,10 +116,10 @@ export default function Leaderboard({ visible, onClose, season }: LeaderboardPro
             style={{
               flex: 1,
               padding: "6px 0",
-              background: type === t ? "rgba(0,0,0,0.06)" : "transparent",
-              border: "1px solid rgba(0,0,0,0.1)",
+              background: type === t ? "#f1f5f9" : "transparent",
+              border: `1px solid ${type === t ? "#e2e8f0" : "#e2e8f0"}`,
               borderRadius: 6,
-              color: type === t ? "#1a1a2e" : "#a0aec0",
+              color: type === t ? "#0f172a" : "#94a3b8",
               fontSize: 12,
               fontWeight: 600,
               cursor: "pointer",
@@ -132,7 +132,7 @@ export default function Leaderboard({ visible, onClose, season }: LeaderboardPro
 
       {/* Entries */}
       {entries.length === 0 ? (
-        <div style={{ color: "#a0aec0", fontSize: 12, textAlign: "center", padding: 20 }}>
+        <div style={{ color: "#94a3b8", fontSize: 12, textAlign: "center", padding: 20 }}>
           No data yet. Start placing pixels!
         </div>
       ) : (
@@ -145,7 +145,7 @@ export default function Leaderboard({ visible, onClose, season }: LeaderboardPro
                 alignItems: "center",
                 gap: 8,
                 padding: "6px 8px",
-                background: e.rank <= 3 ? "rgba(217,119,6,0.06)" : "transparent",
+                background: e.rank <= 3 ? "rgba(217,119,6,0.04)" : e.rank % 2 === 0 ? "rgba(0,0,0,0.02)" : "transparent",
                 borderRadius: 6,
                 fontSize: 12,
               }}
@@ -155,12 +155,12 @@ export default function Leaderboard({ visible, onClose, season }: LeaderboardPro
                   width: 24,
                   textAlign: "center",
                   fontWeight: 700,
-                  color: e.rank === 1 ? "#d97706" : e.rank === 2 ? "#718096" : e.rank === 3 ? "#A06A42" : "#a0aec0",
+                  color: e.rank === 1 ? "#d97706" : e.rank === 2 ? "#94a3b8" : e.rank === 3 ? "#A06A42" : "#94a3b8",
                 }}
               >
                 {e.rank}
               </span>
-              <span style={{ flex: 1, color: "#4a5568", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              <span style={{ flex: 1, color: "#64748b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                 {e.displayName}
               </span>
               <span style={{ color: type === "spent" ? "#d97706" : "#16a34a", fontWeight: 600 }}>

@@ -11,9 +11,9 @@ export default function CookieBanner({ onAccept, onMoreInfo }: CookieBannerProps
         bottom: 0,
         left: 0,
         right: 0,
-        background: "rgba(255,255,255,0.97)",
-        backdropFilter: "blur(8px)",
-        borderTop: "1px solid rgba(0,0,0,0.1)",
+        background: "rgba(255,255,255,0.95)",
+        backdropFilter: "blur(16px)",
+        borderTop: "1px solid #e2e8f0",
         padding: "16px 24px",
         display: "flex",
         alignItems: "center",
@@ -23,14 +23,14 @@ export default function CookieBanner({ onAccept, onMoreInfo }: CookieBannerProps
         flexWrap: "wrap",
       }}
     >
-      <span style={{ fontSize: 13, color: "#4a5568", maxWidth: 500 }}>
+      <span style={{ fontSize: 13, color: "#64748b", maxWidth: 500 }}>
         This website uses localStorage for technical purposes (wallet connection). No tracking cookies.
       </span>
       <div style={{ display: "flex", gap: 8 }}>
         <button
           onClick={onAccept}
           style={{
-            background: "#1a1a2e",
+            background: "linear-gradient(135deg, #06b6d4, #3b82f6)",
             color: "#fff",
             border: "none",
             borderRadius: 6,
@@ -46,8 +46,8 @@ export default function CookieBanner({ onAccept, onMoreInfo }: CookieBannerProps
           onClick={onMoreInfo}
           style={{
             background: "transparent",
-            color: "#4a5568",
-            border: "1px solid rgba(0,0,0,0.15)",
+            color: "#64748b",
+            border: "1px solid #e2e8f0",
             borderRadius: 6,
             padding: "8px 16px",
             fontSize: 13,

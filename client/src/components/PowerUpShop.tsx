@@ -55,9 +55,7 @@ export default function PowerUpShop({
   // Load inventory when visible and wallet connected
   useEffect(() => {
     if (!visible || !walletId) return;
-    apiRequest<{ inventory: InventoryItem[] }>("/api/powerups/inventory", {
-      headers: { "X-Wallet-Id": walletId },
-    }).then(({ ok, payload }) => {
+    apiRequest<{ inventory: InventoryItem[] }>("/api/powerups/inventory").then(({ ok, payload }) => {
       if (ok) setInventory(payload.inventory);
     });
   }, [visible, walletId]);
@@ -74,7 +72,6 @@ export default function PowerUpShop({
       {
         method: "POST",
         body: JSON.stringify({ powerUpId }),
-        headers: { "X-Wallet-Id": walletId },
       }
     );
 
@@ -110,29 +107,29 @@ export default function PowerUpShop({
         position: "fixed",
         top: 56,
         left: 12,
-        background: "rgba(255,255,255,0.97)",
-        backdropFilter: "blur(8px)",
+        background: "rgba(255,255,255,0.85)",
+        backdropFilter: "blur(16px)",
         padding: "16px 20px",
         borderRadius: 12,
         width: 280,
         maxHeight: "70vh",
         overflow: "auto",
         fontSize: 13,
-        color: "#4a5568",
-        boxShadow: "0 4px 24px rgba(0,0,0,0.1)",
-        border: "1px solid rgba(0,0,0,0.08)",
+        color: "#64748b",
+        boxShadow: "0 4px 20px rgba(0,0,0,0.06)",
+        border: "1px solid rgba(0,0,0,0.06)",
         zIndex: 150,
       }}
     >
       {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-        <span style={{ fontWeight: 700, fontSize: 15, color: "#1a1a2e" }}>Power-Up Shop</span>
+        <span style={{ fontWeight: 700, fontSize: 15, color: "#0f172a" }}>Power-Up Shop</span>
         <button
           onClick={onClose}
           style={{
             background: "none",
             border: "none",
-            color: "#a0aec0",
+            color: "#94a3b8",
             fontSize: 16,
             cursor: "pointer",
             padding: "0 4px",
@@ -144,38 +141,38 @@ export default function PowerUpShop({
 
       {/* Error */}
       {error && (
-        <div style={{ color: "#dc2626", fontSize: 12, marginBottom: 10 }}>{error}</div>
+        <div style={{ color: "#ef4444", fontSize: 12, marginBottom: 10 }}>{error}</div>
       )}
 
       {/* Catalog */}
       <div style={{ marginBottom: 16 }}>
-        <div style={{ fontSize: 11, color: "#a0aec0", textTransform: "uppercase", fontWeight: 600, marginBottom: 8 }}>
+        <div style={{ fontSize: 11, color: "#94a3b8", textTransform: "uppercase", fontWeight: 600, marginBottom: 8 }}>
           Available
         </div>
         {catalog.map((item) => (
           <div
             key={item.id}
             style={{
-              background: "rgba(0,0,0,0.02)",
+              background: "#f8f9fc",
               borderRadius: 8,
               padding: 12,
               marginBottom: 8,
-              border: "1px solid rgba(0,0,0,0.06)",
+              border: "1px solid #e2e8f0",
             }}
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-              <span style={{ fontWeight: 600, color: "#1a1a2e" }}>{item.name}</span>
+              <span style={{ fontWeight: 600, color: "#0f172a" }}>{item.name}</span>
               <span style={{ color: "#d97706", fontWeight: 700, fontSize: 12 }}>{item.price} IOTA</span>
             </div>
-            <div style={{ fontSize: 11, color: "#718096", marginBottom: 8 }}>{item.description}</div>
+            <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 8 }}>{item.description}</div>
             <button
               onClick={() => handleBuy(item.id)}
               disabled={!walletId || buying || balance < item.price}
               style={{
                 width: "100%",
                 padding: "6px 0",
-                background: !walletId || balance < item.price ? "#e2e8f0" : "#3b82f6",
-                color: !walletId || balance < item.price ? "#a0aec0" : "#fff",
+                background: !walletId || balance < item.price ? "#f1f5f9" : "linear-gradient(135deg, #06b6d4, #3b82f6)",
+                color: !walletId || balance < item.price ? "#94a3b8" : "#fff",
                 border: "none",
                 borderRadius: 6,
                 fontSize: 12,
@@ -192,7 +189,7 @@ export default function PowerUpShop({
       {/* Inventory */}
       {inventory.length > 0 && (
         <div style={{ marginBottom: 16 }}>
-          <div style={{ fontSize: 11, color: "#a0aec0", textTransform: "uppercase", fontWeight: 600, marginBottom: 8 }}>
+          <div style={{ fontSize: 11, color: "#94a3b8", textTransform: "uppercase", fontWeight: 600, marginBottom: 8 }}>
             Inventory ({inventory.length})
           </div>
           {inventory.map((item) => (
@@ -203,19 +200,19 @@ export default function PowerUpShop({
                 justifyContent: "space-between",
                 alignItems: "center",
                 padding: "8px 10px",
-                background: "rgba(59,130,246,0.06)",
+                background: "rgba(6,182,212,0.08)",
                 borderRadius: 6,
                 marginBottom: 4,
               }}
             >
-              <span style={{ fontWeight: 600, color: "#1a1a2e", fontSize: 12 }}>Shield</span>
+              <span style={{ fontWeight: 600, color: "#0f172a", fontSize: 12 }}>Shield</span>
               <button
                 onClick={() => handleActivate(item.id)}
                 style={{
                   padding: "4px 12px",
-                  background: "#16a34a",
-                  color: "#fff",
-                  border: "none",
+                  background: "rgba(22,163,74,0.08)",
+                  color: "#16a34a",
+                  border: "1px solid rgba(22,163,74,0.2)",
                   borderRadius: 4,
                   fontSize: 11,
                   fontWeight: 600,
@@ -232,7 +229,7 @@ export default function PowerUpShop({
       {/* Active Shields */}
       {activeShields.length > 0 && (
         <div>
-          <div style={{ fontSize: 11, color: "#a0aec0", textTransform: "uppercase", fontWeight: 600, marginBottom: 8 }}>
+          <div style={{ fontSize: 11, color: "#94a3b8", textTransform: "uppercase", fontWeight: 600, marginBottom: 8 }}>
             Active Shields ({activeShields.length})
           </div>
           {activeShields.map((s, i) => (
@@ -243,16 +240,16 @@ export default function PowerUpShop({
                 justifyContent: "space-between",
                 alignItems: "center",
                 padding: "6px 10px",
-                background: "rgba(6,182,212,0.08)",
+                background: "rgba(6,182,212,0.06)",
                 borderRadius: 6,
                 marginBottom: 4,
                 fontSize: 12,
               }}
             >
-              <span style={{ color: "#1a1a2e" }}>
+              <span style={{ color: "#64748b" }}>
                 ({s.x}, {s.y})
               </span>
-              <span style={{ color: "#0891b2", fontWeight: 600 }}>{timeRemaining(s.expiresAt)}</span>
+              <span style={{ color: "#06b6d4", fontWeight: 600 }}>{timeRemaining(s.expiresAt)}</span>
             </div>
           ))}
         </div>

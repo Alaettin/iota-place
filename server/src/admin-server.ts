@@ -360,7 +360,12 @@ export function startAdminServer(): void {
       if (!season || !season.snapshotUrl) {
         return res.status(404).json({ error: "SNAPSHOT_NOT_FOUND" });
       }
+      const snapshotDir = path.resolve(__dirname, "../../data/snapshots");
       const filePath = path.resolve(__dirname, "../../data", season.snapshotUrl);
+      // Prevent path traversal: ensure resolved path stays within snapshots directory
+      if (!filePath.startsWith(snapshotDir)) {
+        return res.status(400).json({ error: "INVALID_SNAPSHOT_PATH" });
+      }
       if (!fs.existsSync(filePath)) {
         return res.status(404).json({ error: "SNAPSHOT_FILE_MISSING" });
       }

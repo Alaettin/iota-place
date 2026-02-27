@@ -46,21 +46,21 @@ export default function PixelInfo({
         position: "fixed",
         bottom: 80,
         right: 12,
-        background: "rgba(255,255,255,0.95)",
-        backdropFilter: "blur(8px)",
+        background: "rgba(255,255,255,0.85)",
+        backdropFilter: "blur(16px)",
         padding: 16,
         borderRadius: 12,
         minWidth: 220,
         fontSize: 13,
-        color: "#4a5568",
-        boxShadow: "0 2px 16px rgba(0,0,0,0.08)",
-        border: "1px solid rgba(0,0,0,0.08)",
+        color: "#64748b",
+        boxShadow: "0 4px 20px rgba(0,0,0,0.06)",
+        border: "1px solid rgba(0,0,0,0.06)",
         zIndex: 50,
       }}
     >
       {/* Header with close */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-        <div style={{ fontWeight: 700, fontSize: 15, color: "#1a1a2e" }}>
+        <div style={{ fontWeight: 700, fontSize: 15, color: "#0f172a" }}>
           Pixel ({selectedPixel.x}, {selectedPixel.y})
         </div>
         <button
@@ -68,7 +68,7 @@ export default function PixelInfo({
           style={{
             background: "none",
             border: "none",
-            color: "#a0aec0",
+            color: "#94a3b8",
             fontSize: 16,
             cursor: "pointer",
             padding: "0 4px",
@@ -87,21 +87,21 @@ export default function PixelInfo({
                 width: 18,
                 height: 18,
                 background: COLOR_PALETTE[pixel.color],
-                border: "1px solid rgba(0,0,0,0.15)",
+                border: "1px solid #e2e8f0",
                 borderRadius: 3,
               }}
             />
-            <span style={{ color: "#718096" }}>{COLOR_PALETTE[pixel.color]}</span>
+            <span style={{ color: "#94a3b8" }}>{COLOR_PALETTE[pixel.color]}</span>
           </div>
 
           {pixel.walletId && (
             <div style={{ marginBottom: 4 }}>
-              Owner: <span style={{ color: "#4a5568" }}>{pixel.walletId.slice(0, 12)}...</span>
+              Owner: <span style={{ color: "#64748b" }}>{pixel.walletId.slice(0, 12)}...</span>
             </div>
           )}
 
           <div style={{ marginBottom: 4 }}>
-            Overwrites: <span style={{ color: "#1a1a2e", fontWeight: 600 }}>{pixel.overwriteCount}</span>
+            Overwrites: <span style={{ color: "#0f172a", fontWeight: 600 }}>{pixel.overwriteCount}</span>
           </div>
 
           <div style={{ marginBottom: 4 }}>
@@ -115,7 +115,7 @@ export default function PixelInfo({
         <div
           style={{
             padding: "6px 10px",
-            background: "rgba(6,182,212,0.1)",
+            background: "rgba(6,182,212,0.08)",
             borderRadius: 6,
             fontSize: 12,
             color: "#0891b2",
@@ -128,21 +128,21 @@ export default function PixelInfo({
       )}
 
       {/* Separator */}
-      <div style={{ borderTop: "1px solid rgba(0,0,0,0.08)", margin: "10px 0" }} />
+      <div style={{ borderTop: "1px solid #e2e8f0", margin: "10px 0" }} />
 
       {/* New color preview */}
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-        <span style={{ color: "#718096" }}>New color:</span>
+        <span style={{ color: "#94a3b8" }}>New color:</span>
         <div
           style={{
             width: 18,
             height: 18,
             background: COLOR_PALETTE[selectedColor],
-            border: "1px solid rgba(0,0,0,0.15)",
+            border: "1px solid #e2e8f0",
             borderRadius: 3,
           }}
         />
-        <span style={{ color: "#4a5568", fontSize: 12 }}>{COLOR_PALETTE[selectedColor]}</span>
+        <span style={{ color: "#64748b", fontSize: 12 }}>{COLOR_PALETTE[selectedColor]}</span>
       </div>
 
       {/* Price */}
@@ -157,10 +157,10 @@ export default function PixelInfo({
         <div
           style={{
             padding: "8px 12px",
-            background: "rgba(59,130,246,0.08)",
+            background: "rgba(6,182,212,0.06)",
             borderRadius: 8,
             fontSize: 12,
-            color: "#3b82f6",
+            color: "#06b6d4",
             textAlign: "center",
           }}
         >
@@ -173,8 +173,8 @@ export default function PixelInfo({
           style={{
             width: "100%",
             padding: "10px 0",
-            background: isShielded ? "#e2e8f0" : placing ? "#a0aec0" : canAfford ? "#3b82f6" : "#e2e8f0",
-            color: isShielded ? "#a0aec0" : placing ? "#fff" : canAfford ? "#fff" : "#a0aec0",
+            background: isShielded ? "#f1f5f9" : placing ? "#e2e8f0" : canAfford ? "linear-gradient(135deg, #06b6d4, #3b82f6)" : "#f1f5f9",
+            color: isShielded ? "#94a3b8" : placing ? "#64748b" : canAfford ? "#fff" : "#94a3b8",
             border: "none",
             borderRadius: 8,
             fontSize: 14,

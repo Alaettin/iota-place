@@ -16,12 +16,12 @@ export default function ColorPalette({ selectedColor, onColorSelect }: ColorPale
         display: "grid",
         gridTemplateColumns: "repeat(8, 1fr)",
         gap: 3,
-        background: "rgba(255,255,255,0.95)",
-        backdropFilter: "blur(8px)",
+        background: "rgba(255,255,255,0.85)",
+        backdropFilter: "blur(16px)",
         padding: 8,
         borderRadius: 10,
-        boxShadow: "0 2px 12px rgba(0,0,0,0.08)",
-        border: "1px solid rgba(0,0,0,0.08)",
+        boxShadow: "0 4px 20px rgba(0,0,0,0.06)",
+        border: "1px solid rgba(0,0,0,0.06)",
         zIndex: 50,
       }}
     >
@@ -34,13 +34,13 @@ export default function ColorPalette({ selectedColor, onColorSelect }: ColorPale
             width: 28,
             height: 28,
             background: hex,
-            border: selectedColor === i ? "3px solid #1a1a2e" : "2px solid rgba(0,0,0,0.15)",
+            border: selectedColor === i ? "3px solid #06b6d4" : "2px solid rgba(0,0,0,0.1)",
             borderRadius: 4,
             cursor: "pointer",
             transform: selectedColor === i ? "scale(1.2)" : "scale(1)",
             transition: "transform 0.1s, border 0.1s",
             outline: "none",
-            boxShadow: selectedColor === i ? "0 0 8px rgba(0,0,0,0.15)" : "none",
+            boxShadow: selectedColor === i ? "0 0 10px rgba(6,182,212,0.3)" : "none",
           }}
         />
       ))}

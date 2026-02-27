@@ -1,10 +1,10 @@
 interface FooterProps {
-  onLegalPage: (page: "impressum" | "datenschutz" | "agb") => void;
+  onLegalPage: (page: "rules" | "impressum" | "datenschutz" | "agb") => void;
 }
 
 export default function Footer({ onLegalPage }: FooterProps) {
   const linkStyle: React.CSSProperties = {
-    color: "#718096",
+    color: "#64748b",
     textDecoration: "none",
     cursor: "pointer",
     padding: "2px 0",
@@ -21,17 +21,19 @@ export default function Footer({ onLegalPage }: FooterProps) {
         gap: 12,
         fontSize: 11,
         zIndex: 10,
-        background: "rgba(255,255,255,0.8)",
-        backdropFilter: "blur(4px)",
+        background: "rgba(255,255,255,0.7)",
+        backdropFilter: "blur(12px)",
         padding: "4px 10px",
         borderRadius: 6,
-        border: "1px solid rgba(0,0,0,0.06)",
+        border: "1px solid rgba(0,0,0,0.04)",
       }}
     >
+      <span style={linkStyle} onClick={() => onLegalPage("rules")}>Rules</span>
+      <span style={{ color: "#e2e8f0" }}>|</span>
       <span style={linkStyle} onClick={() => onLegalPage("impressum")}>Legal Notice</span>
-      <span style={{ color: "#cbd5e0" }}>|</span>
+      <span style={{ color: "#e2e8f0" }}>|</span>
       <span style={linkStyle} onClick={() => onLegalPage("datenschutz")}>Privacy</span>
-      <span style={{ color: "#cbd5e0" }}>|</span>
+      <span style={{ color: "#e2e8f0" }}>|</span>
       <span style={linkStyle} onClick={() => onLegalPage("agb")}>Terms</span>
     </div>
   );

@@ -200,7 +200,7 @@ describe("Canvas Routes", () => {
         .send({ x: 0, y: 0, color: 32 });
 
       expect(res.status).toBe(400);
-      expect(res.body.error).toBe("INVALID_COLOR");
+      expect(res.body.error).toBe("INVALID_PARAMS");
     });
 
     it("returns 402 when payment fails", async () => {

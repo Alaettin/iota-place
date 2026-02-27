@@ -60,6 +60,7 @@ export function mountRoutes(router: Router): void {
           ...config,
           paymentMode: DEFAULT_CONFIG.paymentMode,
           collectionAddress: DEFAULT_CONFIG.collectionAddress,
+          network: DEFAULT_CONFIG.network,
           paused: canvasService.isPaused(),
         },
         palette: COLOR_PALETTE,
@@ -84,11 +85,11 @@ export function mountRoutes(router: Router): void {
       const { x, y, color, txDigest } = req.body;
       const walletId = (req as AuthenticatedRequest).walletId!;
 
-      if (typeof x !== "number" || typeof y !== "number" || typeof color !== "number") {
+      if (!Number.isInteger(x) || !Number.isInteger(y) || !Number.isInteger(color)) {
         return res.status(400).json({ error: "INVALID_PARAMS" });
       }
-      if (color < 0 || color > 31) {
-        return res.status(400).json({ error: "INVALID_COLOR" });
+      if (x < 0 || y < 0 || color < 0 || color > 31) {
+        return res.status(400).json({ error: "INVALID_PARAMS" });
       }
 
       // Check if pixel is shielded

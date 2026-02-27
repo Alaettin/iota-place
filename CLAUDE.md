@@ -10,7 +10,8 @@ Kollaborative Pixel-Canvas-Web-App (wie Reddit r/place) mit IOTA-Mikrotransaktio
 - **DB:** PostgreSQL 16 + Redis 7 (mit graceful In-Memory-Fallback)
 - **Echtzeit:** Socket.io (binaere 5-Byte-Pixel-Updates)
 - **Payment:** Swappbares Interface (`PAYMENT_MODE=mock` oder `iota`)
-- **IOTA:** `@iota/iota-sdk` + `@iota/dapp-kit` (Testnet, Browser-Wallet)
+- **IOTA:** `@iota/iota-sdk` + `@iota/dapp-kit` (Mainnet, Browser-Wallet)
+- **Security:** `helmet` (Security-Headers), HMAC-Token-Auth (kein X-Wallet-Id Fallback)
 - **Monorepo:** npm workspaces (root + `client/` + `server/`)
 
 ## Projekt starten
@@ -104,7 +105,7 @@ PostgreSQL und Redis sind optional — ohne sie laeuft alles in-memory.
 - Z-Index Hierarchie: 10 (Zoom/Footer) → 50 (Panels) → 100 (Header) → 150 (Leaderboard/Shop) → 200 (Toast) → 300 (Cookie-Banner) → 400 (Legal-Modal)
 - Betreiberdaten ueber `VITE_LEGAL_*` Env-Vars in `client/.env`, nicht im Source-Code
 - Wallet-Daten werden in DB persistiert und beim Startup geladen
-- Pricing: `basePrice` (0.5 IOTA) * `priceFactor` (1.1) ^ `overwriteCount`
+- Pricing: `basePrice` (0.2 IOTA) * `priceFactor` (1.2) ^ n, wobei n = overwriteCount + 1 wenn Pixel belegt, sonst 0
 - Alle Singletons nutzen `globalThis`-Pattern (Fix fuer CJS/ESM Dual-Module-Bug in `tsx`)
 - WebSocket-Events: `pixel:update`, `user:count`, `canvas:pause`, `season:change`, `canvas:reset`, `canvas:resize`, `powerup:shield`
 - Power-Up-System: `powerUpService` verwaltet Katalog, Inventar und aktive Effekte (Shield)
@@ -113,7 +114,7 @@ PostgreSQL und Redis sind optional — ohne sie laeuft alles in-memory.
 ## Tests
 
 - **Framework:** Vitest
-- **Server-Tests:** 186 Tests, 14 Dateien — `cd server && npm test`
+- **Server-Tests:** 198 Tests, 15 Dateien — `cd server && npm test`
 - **Client-Tests:** 23 Tests, 4 Dateien — `cd client && npm test` (happy-dom + @testing-library/react)
 - **Dokumentation:** `TEST.md` im Projekt-Root
 - Tests liegen kolociert neben Source: `src/__tests__/`, `src/services/`, `src/routes/`, `src/middleware/`, `src/ws/`

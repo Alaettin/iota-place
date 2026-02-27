@@ -57,8 +57,8 @@ Saison-basiert mit Leaderboards, Power-Ups und wachsendem Canvas.
 - Swappbares PaymentService Interface (`payment.interface.ts`)
 - MockPaymentService (In-Memory, Starting Balance 100 IOTA)
 - PaymentService Factory (`PAYMENT_MODE` env var)
-- PricingService: `price = 0.5 * 1.1^n`
-- WalletAuth Middleware (X-Wallet-Id Header)
+- PricingService: `price = 0.2 * 1.2^n` (n = overwriteCount+1 wenn belegt, sonst 0)
+- WalletAuth Middleware (HMAC Bearer Token)
 - Wallet-API: connect, balance, faucet (+50 Tokens)
 - WalletPanel im Frontend
 
@@ -109,7 +109,7 @@ Saison-basiert mit Leaderboards, Power-Ups und wachsendem Canvas.
 - `dotenv.config()` fix fuer ES Module Hoisting (dynamische Imports in bootstrap())
 
 ### Phase 9.1: Polish & Admin-Separation
-- Base-Price von 0.1 auf 0.5 IOTA erhoet
+- Base-Price auf 0.2 IOTA, priceFactor auf 1.2 (20% pro Overwrite, greift ab 1. Ueberschreibung)
 - Center-Canvas Button (⊕ neben Zoom-Indikator)
 - Pause/Maintenance-Modus (Server-Flag + WebSocket-Broadcast + Client-Banner)
 - JSON-Backup-Service (alle 30 Min, letzte 48 behalten)
@@ -192,7 +192,7 @@ Saison-basiert mit Leaderboards, Power-Ups und wachsendem Canvas.
 - WebSocket-Event `powerup:shield` fuer Echtzeit-Updates (Aktivierung/Ablauf)
 - Admin: Shield-Stats + manuelles Entfernen aktiver Shields
 - Cleanup: Lazy (bei Zugriff) + periodisch (alle 60 Sekunden)
-- **209 Tests** (186 Server + 23 Client)
+- **221 Tests** (198 Server + 23 Client)
 
 ---
 
