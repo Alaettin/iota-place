@@ -21,22 +21,22 @@ describe("getPixelPrice", () => {
     expect(getPixelPrice(0, 0)).toBe(0.2);
   });
 
-  it("returns 0.24 for first overwrite (owned pixel, overwriteCount=0)", () => {
+  it("returns 0.22 for first overwrite (owned pixel, overwriteCount=0)", () => {
     mockGetPixel.mockReturnValue({
       x: 0, y: 0, color: 1, walletId: "w",
       pricePaid: 0.2, overwriteCount: 0, updatedAt: "",
     });
-    // n = 0 + 1 = 1 → 0.2 * 1.2^1 = 0.24
-    expect(getPixelPrice(0, 0)).toBe(0.24);
+    // n = 0 + 1 = 1 → 0.2 * 1.1^1 = 0.22
+    expect(getPixelPrice(0, 0)).toBe(0.22);
   });
 
-  it("returns 0.288 for second overwrite (overwriteCount=1)", () => {
+  it("returns 0.242 for second overwrite (overwriteCount=1)", () => {
     mockGetPixel.mockReturnValue({
       x: 0, y: 0, color: 1, walletId: "w",
-      pricePaid: 0.24, overwriteCount: 1, updatedAt: "",
+      pricePaid: 0.22, overwriteCount: 1, updatedAt: "",
     });
-    // n = 1 + 1 = 2 → 0.2 * 1.2^2 = 0.288
-    expect(getPixelPrice(0, 0)).toBe(0.288);
+    // n = 1 + 1 = 2 → 0.2 * 1.1^2 = 0.242
+    expect(getPixelPrice(0, 0)).toBe(0.242);
   });
 
   it("correct price after 10 overwrites", () => {
@@ -44,9 +44,9 @@ describe("getPixelPrice", () => {
       x: 0, y: 0, color: 1, walletId: "w",
       pricePaid: 0.2, overwriteCount: 10, updatedAt: "",
     });
-    // n = 10 + 1 = 11 → 0.2 * 1.2^11
+    // n = 10 + 1 = 11 → 0.2 * 1.1^11
     const price = getPixelPrice(0, 0);
-    expect(price).toBe(Math.round(0.2 * Math.pow(1.2, 11) * 10000) / 10000);
+    expect(price).toBe(Math.round(0.2 * Math.pow(1.1, 11) * 10000) / 10000);
   });
 
   it("rounds to 4 decimal places", () => {

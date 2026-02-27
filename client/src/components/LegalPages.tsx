@@ -36,7 +36,7 @@ function RulesContent() {
       <h3 style={h3Style}>Pricing</h3>
       <ul style={{ paddingLeft: 20, lineHeight: 1.8 }}>
         <li>First placement on an empty pixel: <strong>0.2 IOTA</strong></li>
-        <li>Each overwrite costs <strong>20% more</strong> than the previous price</li>
+        <li>Each overwrite costs <strong>10% more</strong> than the previous price</li>
       </ul>
 
       <h3 style={h3Style}>Content Rules</h3>
