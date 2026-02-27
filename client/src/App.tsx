@@ -4,6 +4,7 @@ import ColorPalette from "./components/ColorPalette";
 import PixelInfo from "./components/PixelInfo";
 import WalletPanel from "./components/WalletPanel";
 import Leaderboard from "./components/Leaderboard";
+import AdminPanel from "./components/AdminPanel";
 import { fetchCanvasBinary, apiRequest } from "./services/api";
 import { useSocket } from "./hooks/useSocket";
 import { Pixel } from "./types";
@@ -27,6 +28,7 @@ function App() {
   const [wallet, setWallet] = useState<WalletInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
+  const [showAdmin, setShowAdmin] = useState(false);
   const hoverTimeout = useRef<ReturnType<typeof setTimeout>>();
 
   // WebSocket for real-time pixel updates
@@ -167,6 +169,21 @@ function App() {
         >
           Leaderboard
         </button>
+        <button
+          onClick={() => setShowAdmin(true)}
+          style={{
+            marginLeft: 8,
+            background: "transparent",
+            border: "1px solid rgba(255,255,255,0.2)",
+            borderRadius: 6,
+            padding: "4px 10px",
+            color: "#888",
+            fontSize: 12,
+            cursor: "pointer",
+          }}
+        >
+          Admin
+        </button>
         {wallet && (
           <span style={{ marginLeft: "auto", marginRight: 16, fontSize: 13, color: "#FFD635", fontWeight: 600 }}>
             {wallet.balance.toFixed(2)} IOTA
@@ -220,6 +237,9 @@ function App() {
 
       {/* Wallet Panel */}
       <WalletPanel wallet={wallet} onConnect={handleWalletConnect} onBalanceUpdate={handleBalanceUpdate} />
+
+      {/* Admin Panel */}
+      <AdminPanel visible={showAdmin} onClose={() => setShowAdmin(false)} />
     </div>
   );
 }
