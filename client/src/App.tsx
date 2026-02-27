@@ -104,7 +104,9 @@ function App() {
         const priceRes = await apiRequest<{ price: number }>(`/api/canvas/price/${x}/${y}`);
         if (priceRes.ok) setNextPrice(priceRes.payload.price);
       } else {
-        if (status === 402) {
+        if (status === 429) {
+          setError("Too fast! Wait a moment before placing more pixels.");
+        } else if (status === 402) {
           setError("Insufficient balance! Use the faucet to get more tokens.");
         } else if (payload.error) {
           setError(payload.error);
@@ -113,6 +115,13 @@ function App() {
     },
     [selectedColor, canvasWidth, wallet]
   );
+
+  // Auto-dismiss error after 3 seconds
+  useEffect(() => {
+    if (!error) return;
+    const timer = setTimeout(() => setError(null), 3000);
+    return () => clearTimeout(timer);
+  }, [error]);
 
   const handleWalletConnect = useCallback((w: WalletInfo) => {
     setWallet(w);

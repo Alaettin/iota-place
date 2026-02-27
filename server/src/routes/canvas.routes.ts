@@ -6,6 +6,7 @@ import { walletAuth, AuthenticatedRequest } from "../middleware/wallet-auth";
 import { COLOR_PALETTE } from "../types";
 import { broadcastPixelUpdate } from "../ws/socket";
 import { getPool } from "../db/pool";
+import { rateLimit } from "../middleware/rate-limit";
 
 export function mountRoutes(router: Router): void {
   // Full canvas state as binary
@@ -56,7 +57,7 @@ export function mountRoutes(router: Router): void {
   });
 
   // Place pixel with payment
-  router.post("/api/canvas/pixel", walletAuth as any, async (req, res) => {
+  router.post("/api/canvas/pixel", rateLimit, walletAuth as any, async (req, res) => {
     try {
       const { x, y, color } = req.body;
       const walletId = (req as AuthenticatedRequest).walletId!;
