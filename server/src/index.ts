@@ -5,6 +5,7 @@ import path from "path";
 import cors from "cors";
 import { mountRoutes as mountCanvasRoutes } from "./routes/canvas.routes";
 import { mountRoutes as mountWalletRoutes } from "./routes/wallet.routes";
+import { initSocketServer } from "./ws/socket";
 
 const app = express();
 const server = http.createServer(app);
@@ -17,6 +18,9 @@ app.use(express.json());
 app.get("/api/health", (_req, res) => {
   res.json({ ok: true, timestamp: new Date().toISOString() });
 });
+
+// WebSocket
+initSocketServer(server);
 
 // Mount routes
 mountCanvasRoutes(app);

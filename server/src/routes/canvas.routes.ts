@@ -4,6 +4,7 @@ import { getPixelPrice } from "../services/pricing.service";
 import { paymentService } from "../services/payment";
 import { walletAuth, AuthenticatedRequest } from "../middleware/wallet-auth";
 import { COLOR_PALETTE } from "../types";
+import { broadcastPixelUpdate } from "../ws/socket";
 
 export function mountRoutes(router: Router): void {
   // Full canvas state as binary
@@ -78,6 +79,9 @@ export function mountRoutes(router: Router): void {
       // Place pixel
       const pixel = canvasService.setPixel(x, y, color, walletId, payment.amountPaid);
       if (!pixel) return res.status(400).json({ error: "OUT_OF_BOUNDS" });
+
+      // Broadcast to all connected clients
+      broadcastPixelUpdate(x, y, color);
 
       res.json({
         ok: true,

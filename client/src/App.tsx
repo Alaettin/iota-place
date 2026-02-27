@@ -4,6 +4,7 @@ import ColorPalette from "./components/ColorPalette";
 import PixelInfo from "./components/PixelInfo";
 import WalletPanel from "./components/WalletPanel";
 import { fetchCanvasBinary, apiRequest } from "./services/api";
+import { useSocket } from "./hooks/useSocket";
 import { Pixel } from "./types";
 
 interface WalletInfo {
@@ -25,6 +26,18 @@ function App() {
   const [wallet, setWallet] = useState<WalletInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
   const hoverTimeout = useRef<ReturnType<typeof setTimeout>>();
+
+  // WebSocket for real-time pixel updates
+  const handleRemotePixelUpdate = useCallback((x: number, y: number, color: number) => {
+    setColorData((prev) => {
+      if (!prev) return prev;
+      const next = new Uint8Array(prev);
+      next[y * canvasWidth + x] = color;
+      return next;
+    });
+  }, [canvasWidth]);
+
+  const { userCount, connected } = useSocket({ onPixelUpdate: handleRemotePixelUpdate });
 
   // Load canvas on mount
   useEffect(() => {
@@ -134,6 +147,9 @@ function App() {
       >
         <span style={{ fontWeight: 700, fontSize: 16, color: "#fff" }}>IOTA Place</span>
         <span style={{ marginLeft: 12, fontSize: 12, color: "#666" }}>Season 1</span>
+        <span style={{ marginLeft: 12, fontSize: 11, color: connected ? "#94E044" : "#E50000" }}>
+          {connected ? `${userCount} online` : "reconnecting..."}
+        </span>
         {wallet && (
           <span style={{ marginLeft: "auto", marginRight: 16, fontSize: 13, color: "#FFD635", fontWeight: 600 }}>
             {wallet.balance.toFixed(2)} IOTA
